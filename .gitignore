@@ -1,10 +1,64 @@
-.DS_Store
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
 node_modules
-/build
-/.svelte-kit
-/package
+.pnpm-store
+
+# Build outputs
+dist
+dist-ssr
+build
+.svelte-kit
+*.local
+
+# Environment files
 .env
-.env.*
-!.env.example
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*
+.env*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Tauri
+src-tauri/target
+src-tauri/WixTools
+
+# Rust
+**/*.rs.bk
+*.pdb
+
+# OS
+Thumbs.db
+
+# Test files
+coverage
+
+# Backup files
+*.backup.*
+*~
+
+# Build artifacts
+*.dmg
+*.exe
+*.msi
+*.deb
+*.rpm
+*.AppImage
+
+# Temporary files
+tmp/
+temp/

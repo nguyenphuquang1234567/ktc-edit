@@ -1,0 +1,206 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., v0.1.0)'
+        required: false
+        default: 'v0.0.0-dev'
+
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-latest
+    outputs:
+      release_body: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          
+          # Get the previous tag
+          PREV_TAG=$(git tag --sort=-v:refname | grep -E "^v[0-9]" | head -n 2 | tail -n 1)
+          
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found, using all commits"
+            PREV_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+          
+          echo "Generating changelog from $PREV_TAG to HEAD"
+          
+          # Generate changelog
+          CHANGELOG="## What's Changed\n\n"
+          
+          # Features
+          FEATURES=$(git log $PREV_TAG..HEAD --pretty=format:"%s" --grep="^feat" --no-merges)
+          if [ ! -z "$FEATURES" ]; then
+            CHANGELOG="$CHANGELOG### Features\n\n"
+            while IFS= read -r line; do
+              CHANGELOG="$CHANGELOG- ${line#feat: }\n"
+            done <<< "$FEATURES"
+            CHANGELOG="$CHANGELOG\n"
+          fi
+          
+          # Bug Fixes
+          FIXES=$(git log $PREV_TAG..HEAD --pretty=format:"%s" --grep="^fix" --no-merges)
+          if [ ! -z "$FIXES" ]; then
+            CHANGELOG="$CHANGELOG### Bug Fixes\n\n"
+            while IFS= read -r line; do
+              CHANGELOG="$CHANGELOG- ${line#fix: }\n"
+            done <<< "$FIXES"
+            CHANGELOG="$CHANGELOG\n"
+          fi
+          
+          # Documentation
+          DOCS=$(git log $PREV_TAG..HEAD --pretty=format:"%s" --grep="^docs" --no-merges)
+          if [ ! -z "$DOCS" ]; then
+            CHANGELOG="$CHANGELOG### Documentation\n\n"
+            while IFS= read -r line; do
+              CHANGELOG="$CHANGELOG- ${line#docs: }\n"
+            done <<< "$DOCS"
+            CHANGELOG="$CHANGELOG\n"
+          fi
+          
+          # Other changes
+          OTHERS=$(git log $PREV_TAG..HEAD --pretty=format:"%s" --invert-grep --grep="^feat" --grep="^fix" --grep="^docs" --grep="^chore" --grep="^Merge" --no-merges)
+          if [ ! -z "$OTHERS" ]; then
+            CHANGELOG="$CHANGELOG### Other Changes\n\n"
+            while IFS= read -r line; do
+              CHANGELOG="$CHANGELOG- $line\n"
+            done <<< "$OTHERS"
+            CHANGELOG="$CHANGELOG\n"
+          fi
+          
+          # Add installation instructions
+          CHANGELOG="$CHANGELOG\n---\n\n"
+          CHANGELOG="$CHANGELOG## Installation\n\n"
+          CHANGELOG="$CHANGELOG### Download\n\n"
+          CHANGELOG="$CHANGELOG- **macOS**: Download \`ktcedit_*_aarch64.dmg\` or \`ktcedit_*_universal.dmg\`\n"
+          CHANGELOG="$CHANGELOG- **Windows**: Download \`ktcedit_*_x64-setup.exe\` or \`ktcedit_*_x64_en-US.msi\`\n"
+          CHANGELOG="$CHANGELOG- **Linux**: Download \`ktcedit_*_amd64.deb\` or \`ktcedit_*_amd64.AppImage\`\n\n"
+          CHANGELOG="$CHANGELOG### First-time Users\n\n"
+          CHANGELOG="$CHANGELOG1. Download the appropriate file for your platform\n"
+          CHANGELOG="$CHANGELOG2. Install or extract the application\n"
+          CHANGELOG="$CHANGELOG3. Run the application\n"
+          CHANGELOG="$CHANGELOG4. Click 'Open global-v35' to select your Kingdom Two Crowns save file\n\n"
+          CHANGELOG="$CHANGELOG**Note**: Make sure to close Kingdom Two Crowns before editing save files.\n\n"
+          CHANGELOG="$CHANGELOG**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${VERSION}\n"
+          
+          # Save to file
+          echo -e "$CHANGELOG" > changelog.md
+          
+          # Output for GitHub
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "changelog<<$EOF" >> $GITHUB_OUTPUT
+          cat changelog.md >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+      - name: Upload changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: changelog.md
+
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: changelog
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target universal-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build application
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.version }}
+          releaseName: 'Kingdom Two Crowns Save Editor __VERSION__'
+          releaseBody: ${{ needs.changelog.outputs.release_body }}
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  finalize:
+    name: Finalize Release
+    needs: [changelog, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download changelog
+        uses: actions/download-artifact@v4
+        with:
+          name: changelog
+
+      - name: Display changelog
+        run: cat changelog.md
+
+      - name: Release ready
+        run: |
+          echo "Release draft created successfully!"
+          echo "Version: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.version }}"
+          echo "Please review and publish the release at: https://github.com/${{ github.repository }}/releases"
