@@ -27,21 +27,21 @@ fn load_save_file(path: String) -> Result<LoadResponse, String> {
     info!("Opening save file at {}", path_buf.display());
 
     let file = std::fs::File::open(&path_buf).map_err(|err| {
-        error!("Impossible d'ouvrir {}: {}", path_buf.display(), err);
+        error!("Unable to open {}: {}", path_buf.display(), err);
         err.to_string()
     })?;
     let mut decoder = GzDecoder::new(file);
     let mut json = String::new();
     decoder.read_to_string(&mut json).map_err(|err| {
         error!(
-            "Erreur lors de la décompression de {}: {}",
+            "Failed to decompress {}: {}",
             path_buf.display(),
             err
         );
         err.to_string()
     })?;
     debug!(
-        "Décompression terminée ({} octets JSON)",
+        "Decompression complete ({} JSON bytes)",
         json.as_bytes().len()
     );
     let data: Value = serde_json::from_str(&json).map_err(|err| {
@@ -49,7 +49,7 @@ fn load_save_file(path: String) -> Result<LoadResponse, String> {
         err.to_string()
     })?;
     if let Some(obj) = data.as_object() {
-        info!("Fichier chargé avec {} clés de premier niveau", obj.len());
+        info!("File loaded with {} top-level keys", obj.len());
     }
 
     Ok(LoadResponse { path, data })
@@ -58,14 +58,14 @@ fn load_save_file(path: String) -> Result<LoadResponse, String> {
 #[tauri::command]
 fn select_save_file() -> Result<LoadResponse, String> {
     let Some(selected) = FileDialog::new()
-        .set_title("Choisir global-v35")
+        .set_title("Choose global-v35")
         .pick_file()
     else {
-        return Err("Sélection annulée".into());
+        return Err("Selection cancelled".into());
     };
 
     let path = selected.to_string_lossy().to_string();
-    info!("Fichier sélectionné: {}", path);
+    info!("Selected file: {}", path);
     load_save_file(path)
 }
 
@@ -74,13 +74,13 @@ fn save_save_file(path: String, data: Value) -> Result<String, String> {
     let path_buf = PathBuf::from(&path);
     validate_path(&path_buf)?;
 
-    info!("Demande de sauvegarde pour {}", path_buf.display());
+    info!("Save requested for {}", path_buf.display());
 
     let backup_path = create_backup(&path_buf)?;
 
     let json = serde_json::to_string_pretty(&data).map_err(|err| {
         error!(
-            "Impossible de sérialiser les données pour {}: {}",
+            "Unable to serialize data for {}: {}",
             path_buf.display(),
             err
         );
@@ -89,7 +89,7 @@ fn save_save_file(path: String, data: Value) -> Result<String, String> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     encoder.write_all(json.as_bytes()).map_err(|err| {
         error!(
-            "Erreur lors de la recompression de {}: {}",
+            "Failed to recompress {}: {}",
             path_buf.display(),
             err
         );
@@ -97,7 +97,7 @@ fn save_save_file(path: String, data: Value) -> Result<String, String> {
     })?;
     let compressed = encoder.finish().map_err(|err| {
         error!(
-            "Erreur lors de la finalisation de la compression pour {}: {}",
+            "Failed to finish compression for {}: {}",
             path_buf.display(),
             err
         );
@@ -107,18 +107,18 @@ fn save_save_file(path: String, data: Value) -> Result<String, String> {
     log_resource_summaries(&data);
 
     info!(
-        "Sauvegarde: JSON {} octets, gzip {} octets",
+        "Save: {} JSON bytes, {} gzip bytes",
         json.as_bytes().len(),
         compressed.len()
     );
 
     fs::write(&path_buf, compressed).map_err(|err| {
-        error!("Impossible d'écrire {}: {}", path_buf.display(), err);
+        error!("Unable to write {}: {}", path_buf.display(), err);
         err.to_string()
     })?;
 
     info!(
-        "Sauvegarde appliquée sur {}, sauvegarde précédente: {}",
+        "Save applied to {}, previous save: {}",
         path_buf.display(),
         backup_path.display()
     );
@@ -170,7 +170,7 @@ fn log_resource_summaries(data: &Value) {
                     .unwrap_or(-1);
 
                 info!(
-                    "Campagne {}: coins P1 = {}, coins P2 = {}, gems P1 = {}, gems P2 = {}",
+                    "Campaign {}: coins P1 = {}, coins P2 = {}, gems P1 = {}, gems P2 = {}",
                     campaign_index, coins_p1, coins_p2, gems_p1, gems_p2
                 );
             }
@@ -184,7 +184,7 @@ fn log_resource_summaries(data: &Value) {
                         let pikemen = count_prefab(objects, &PIKEMAN_PREFABS);
 
                         info!(
-                            "Campagne {} île {}: archers={}, ouvriers={}, fermiers={}, piquiers={}",
+                            "Campaign {} island {}: archers={}, workers={}, farmers={}, pikemen={}",
                             campaign_index, island_index, archers, workers, farmers, pikemen
                         );
                     }
@@ -210,13 +210,13 @@ fn count_prefab(objects: &[Value], prefabs: &[&str]) -> usize {
 
 fn validate_path(path: &Path) -> Result<(), String> {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-        return Err("Nom de fichier invalide".into());
+        return Err("Invalid file name".into());
     };
 
-    debug!("Validation du fichier: {}", name);
+    debug!("Validating file: {}", name);
     if name != SAVE_FILENAME {
         return Err(format!(
-            "Le fichier sélectionné ({name}) n'est pas {SAVE_FILENAME}"
+            "The selected file ({name}) is not {SAVE_FILENAME}"
         ));
     }
 
@@ -226,7 +226,7 @@ fn validate_path(path: &Path) -> Result<(), String> {
 fn create_backup(original: &Path) -> Result<PathBuf, String> {
     let parent = original
         .parent()
-        .ok_or_else(|| "Impossible de déterminer le dossier du fichier".to_string())?;
+        .ok_or_else(|| "Unable to determine the file directory".to_string())?;
     let stem = original
         .file_stem()
         .and_then(|s| s.to_str())
@@ -242,7 +242,7 @@ fn create_backup(original: &Path) -> Result<PathBuf, String> {
 
     fs::copy(original, &backup_path).map_err(|err| {
         error!(
-            "Impossible de créer la sauvegarde {} -> {}: {}",
+            "Unable to create backup {} -> {}: {}",
             original.display(),
             backup_path.display(),
             err
@@ -250,7 +250,7 @@ fn create_backup(original: &Path) -> Result<PathBuf, String> {
         err.to_string()
     })?;
 
-    info!("Copie de sauvegarde créée: {}", backup_path.display());
+    info!("Backup copy created: {}", backup_path.display());
 
     Ok(backup_path)
 }
