@@ -2107,10 +2107,10 @@ export function setTreeMark(doc: JSONValue, options: SetTreeMarkOptions): JSONVa
 }
 
 const DEITY_DEFINITIONS = [
-  { name: "Archer Shrine (Thần Cung Thủ)", island: 1 },
-  { name: "Farmer Shrine (Thần Nông Dân)", island: 2 },
-  { name: "Builder Shrine (Thần Thợ Xây)", island: 3 },
-  { name: "Knight Shrine (Thần Hiệp Sĩ)", island: 5 },
+  { name: "Archer Shrine", island: 1 },
+  { name: "Farmer Shrine", island: 2 },
+  { name: "Builder Shrine", island: 3 },
+  { name: "Knight Shrine", island: 5 },
 ];
 
 export function getCampaignDeities(doc: JSONValue | null, campaignIndex: number): DeityInfo[] {
