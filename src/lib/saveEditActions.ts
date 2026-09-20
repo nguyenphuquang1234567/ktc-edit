@@ -12,6 +12,8 @@ export interface CoinsOptions extends SelectionOptions {
   coins: number;
 }
 
+
+
 export type CoinsQueryOptions = SelectionOptions;
 
 export interface GemsOptions extends SelectionOptions {
@@ -272,7 +274,10 @@ function findPlayerObject(objects: MutableJSONObject[], playerIndex: number) {
   const name = `Player ${playerIndex + 1}`;
   return objects.find((entry) => entry.name === name) ?? null;
 }
-
+/*
+  Đây là comment
+  trên nhiều dòng khác nhau
+*/
 function nextNumericValue(objects: MutableJSONObject[], key: string, fallback: number): number {
   let maxValue = fallback;
 
