@@ -8,10 +8,146 @@ use std::{
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use log::{debug, error, info};
 use rfd::FileDialog;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 const SAVE_FILENAME: &str = "global-v35";
+const RESOURCES_ASSETS: &str = "resources.assets";
+const SHARED_ASSETS: &str = "sharedassets0.assets";
+const EXPECTED_RESOURCES_SIZE: u64 = 59_975_696;
+const EXPECTED_SHARED_SIZE: u64 = 59_876_160;
+
+#[derive(Clone, Copy)]
+struct FloatTarget {
+    file: &'static str,
+    offset: usize,
+}
+
+const GRIFFIN_RUN: [FloatTarget; 5] = targets(
+    RESOURCES_ASSETS,
+    [56688996, 57507236, 57909764, 59403668, 59404436],
+);
+const GRIFFIN_FOREST: [FloatTarget; 5] = targets(
+    RESOURCES_ASSETS,
+    [56689000, 57507240, 57909768, 59403672, 59404440],
+);
+const GRIFFIN_RUN_STAMINA: [FloatTarget; 5] = targets(
+    RESOURCES_ASSETS,
+    [56689008, 57507248, 57909776, 59403680, 59404448],
+);
+const GRIFFIN_SKILL_COST: [FloatTarget; 5] = targets(
+    RESOURCES_ASSETS,
+    [57391040, 57529680, 57847760, 59448864, 59448944],
+);
+const HORSE_RUN: [FloatTarget; 3] = targets(RESOURCES_ASSETS, [56693532, 57274316, 57275076]);
+const HORSE_RUN_STAMINA: [FloatTarget; 3] =
+    targets(RESOURCES_ASSETS, [56693544, 57274328, 57275088]);
+const WARHORSE_RUN: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56670580, 57793044]);
+const WARHORSE_RUN_STAMINA: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56670592, 57793056]);
+const WARHORSE_SKILL_COST: [FloatTarget; 4] =
+    targets(RESOURCES_ASSETS, [58179744, 58288032, 58169200, 58169088]);
+const WARHORSE_COOLDOWN: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [58179764, 58288052]);
+const WARHORSE_PLAGUE_COOLDOWN: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [58169220, 58169108]);
+const WARHORSE_RANGE: [FloatTarget; 4] =
+    targets(RESOURCES_ASSETS, [58179816, 58288104, 58169272, 58169160]);
+const WARHORSE_DURATION: [FloatTarget; 1] = targets(RESOURCES_ASSETS, [55809144]);
+const BAG_SCALE: [FloatTarget; 12] = [
+    FloatTarget {
+        file: SHARED_ASSETS,
+        offset: 52139272,
+    },
+    FloatTarget {
+        file: SHARED_ASSETS,
+        offset: 52139276,
+    },
+    FloatTarget {
+        file: SHARED_ASSETS,
+        offset: 52139280,
+    },
+    FloatTarget {
+        file: SHARED_ASSETS,
+        offset: 52139640,
+    },
+    FloatTarget {
+        file: SHARED_ASSETS,
+        offset: 52139644,
+    },
+    FloatTarget {
+        file: SHARED_ASSETS,
+        offset: 52139648,
+    },
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 40580168,
+    },
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 40580172,
+    },
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 40580176,
+    },
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 40580248,
+    },
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 40580252,
+    },
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 40580256,
+    },
+];
+
+const fn targets<const N: usize>(file: &'static str, offsets: [usize; N]) -> [FloatTarget; N] {
+    let mut result = [FloatTarget { file, offset: 0 }; N];
+    let mut index = 0;
+    while index < N {
+        result[index] = FloatTarget {
+            file,
+            offset: offsets[index],
+        };
+        index += 1;
+    }
+    result
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AssetSettings {
+    griffin_run_speed: f32,
+    griffin_forest_multiplier: f32,
+    griffin_run_stamina_rate: f32,
+    griffin_skill_stamina_cost: f32,
+    horse_run_speed: f32,
+    horse_run_stamina_rate: f32,
+    warhorse_run_speed: f32,
+    warhorse_run_stamina_rate: f32,
+    warhorse_skill_stamina_cost: f32,
+    warhorse_cooldown: f32,
+    warhorse_plague_cooldown: f32,
+    warhorse_buff_duration: f32,
+    warhorse_buff_range: f32,
+    bag_scale: f32,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssetResponse {
+    data_directory: String,
+    settings: AssetSettings,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssetApplyResponse {
+    resources_backup: String,
+    shared_assets_backup: String,
+    settings: AssetSettings,
+}
 
 #[derive(Serialize)]
 struct LoadResponse {
@@ -33,11 +169,7 @@ fn load_save_file(path: String) -> Result<LoadResponse, String> {
     let mut decoder = GzDecoder::new(file);
     let mut json = String::new();
     decoder.read_to_string(&mut json).map_err(|err| {
-        error!(
-            "Failed to decompress {}: {}",
-            path_buf.display(),
-            err
-        );
+        error!("Failed to decompress {}: {}", path_buf.display(), err);
         err.to_string()
     })?;
     debug!(
@@ -57,10 +189,7 @@ fn load_save_file(path: String) -> Result<LoadResponse, String> {
 
 #[tauri::command]
 fn select_save_file() -> Result<LoadResponse, String> {
-    let Some(selected) = FileDialog::new()
-        .set_title("Choose global-v35")
-        .pick_file()
-    else {
+    let Some(selected) = FileDialog::new().set_title("Choose global-v35").pick_file() else {
         return Err("Selection cancelled".into());
     };
 
@@ -88,11 +217,7 @@ fn save_save_file(path: String, data: Value) -> Result<String, String> {
     })?;
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     encoder.write_all(json.as_bytes()).map_err(|err| {
-        error!(
-            "Failed to recompress {}: {}",
-            path_buf.display(),
-            err
-        );
+        error!("Failed to recompress {}: {}", path_buf.display(), err);
         err.to_string()
     })?;
     let compressed = encoder.finish().map_err(|err| {
@@ -215,9 +340,7 @@ fn validate_path(path: &Path) -> Result<(), String> {
 
     debug!("Validating file: {}", name);
     if name != SAVE_FILENAME {
-        return Err(format!(
-            "The selected file ({name}) is not {SAVE_FILENAME}"
-        ));
+        return Err(format!("The selected file ({name}) is not {SAVE_FILENAME}"));
     }
 
     Ok(())
@@ -253,6 +376,379 @@ fn create_backup(original: &Path) -> Result<PathBuf, String> {
     info!("Backup copy created: {}", backup_path.display());
 
     Ok(backup_path)
+}
+
+fn default_game_data_directory() -> PathBuf {
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_default();
+        return home.join("Library/Application Support/Steam/steamapps/common/Kingdom Two Crowns/KingdomTwoCrowns.app/Contents/Resources/Data");
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let program_files = std::env::var_os("PROGRAMFILES(X86)")
+            .or_else(|| std::env::var_os("PROGRAMFILES"))
+            .map(PathBuf::from)
+            .unwrap_or_default();
+        return program_files
+            .join("Steam/steamapps/common/Kingdom Two Crowns/KingdomTwoCrowns_Data");
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_default();
+        home.join(".local/share/Steam/steamapps/common/Kingdom Two Crowns/KingdomTwoCrowns_Data")
+    }
+}
+
+fn validate_asset_directory(directory: &Path) -> Result<(), String> {
+    let resources = directory.join(RESOURCES_ASSETS);
+    let shared = directory.join(SHARED_ASSETS);
+    let resources_size = fs::metadata(&resources)
+        .map_err(|_| {
+            format!(
+                "Could not find {} in {}",
+                RESOURCES_ASSETS,
+                directory.display()
+            )
+        })?
+        .len();
+    let shared_size = fs::metadata(&shared)
+        .map_err(|_| {
+            format!(
+                "Could not find {} in {}",
+                SHARED_ASSETS,
+                directory.display()
+            )
+        })?
+        .len();
+
+    if resources_size != EXPECTED_RESOURCES_SIZE || shared_size != EXPECTED_SHARED_SIZE {
+        return Err(format!(
+            "These assets do not match the supported KTC profile (resources: {resources_size}, shared: {shared_size}). No changes were written."
+        ));
+    }
+    Ok(())
+}
+
+fn read_float(bytes: &[u8], offset: usize) -> Result<f32, String> {
+    let slice = bytes
+        .get(offset..offset + 4)
+        .ok_or_else(|| format!("Địa chỉ {offset} nằm ngoài file"))?;
+    Ok(f32::from_le_bytes(
+        slice
+            .try_into()
+            .map_err(|_| "Could not read a float value".to_string())?,
+    ))
+}
+
+fn write_float(bytes: &mut [u8], offset: usize, value: f32) -> Result<(), String> {
+    if !value.is_finite() {
+        return Err("Value must be a finite number".into());
+    }
+    let destination = bytes
+        .get_mut(offset..offset + 4)
+        .ok_or_else(|| format!("Địa chỉ {offset} nằm ngoài file"))?;
+    destination.copy_from_slice(&value.to_le_bytes());
+    Ok(())
+}
+
+fn consistent_value(
+    resources: &[u8],
+    shared: &[u8],
+    targets: &[FloatTarget],
+) -> Result<f32, String> {
+    let first = targets
+        .first()
+        .ok_or_else(|| "Profile không có địa chỉ".to_string())?;
+    let value = read_float(
+        if first.file == RESOURCES_ASSETS {
+            resources
+        } else {
+            shared
+        },
+        first.offset,
+    )?;
+    for target in &targets[1..] {
+        let candidate = read_float(
+            if target.file == RESOURCES_ASSETS {
+                resources
+            } else {
+                shared
+            },
+            target.offset,
+        )?;
+        if (candidate - value).abs() > 0.0001 {
+            return Err(format!(
+                "Variants in {} do not contain consistent values; restore a clean file first",
+                target.file
+            ));
+        }
+    }
+    Ok(value)
+}
+
+fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
+    validate_asset_directory(directory)?;
+    let resources = fs::read(directory.join(RESOURCES_ASSETS)).map_err(|err| err.to_string())?;
+    let shared = fs::read(directory.join(SHARED_ASSETS)).map_err(|err| err.to_string())?;
+    Ok(AssetSettings {
+        griffin_run_speed: consistent_value(&resources, &shared, &GRIFFIN_RUN)?,
+        griffin_forest_multiplier: consistent_value(&resources, &shared, &GRIFFIN_FOREST)?,
+        griffin_run_stamina_rate: consistent_value(&resources, &shared, &GRIFFIN_RUN_STAMINA)?,
+        griffin_skill_stamina_cost: consistent_value(&resources, &shared, &GRIFFIN_SKILL_COST)?,
+        horse_run_speed: consistent_value(&resources, &shared, &HORSE_RUN)?,
+        horse_run_stamina_rate: consistent_value(&resources, &shared, &HORSE_RUN_STAMINA)?,
+        warhorse_run_speed: consistent_value(&resources, &shared, &WARHORSE_RUN)?,
+        warhorse_run_stamina_rate: consistent_value(&resources, &shared, &WARHORSE_RUN_STAMINA)?,
+        warhorse_skill_stamina_cost: consistent_value(&resources, &shared, &WARHORSE_SKILL_COST)?,
+        warhorse_cooldown: consistent_value(&resources, &shared, &WARHORSE_COOLDOWN)?,
+        warhorse_plague_cooldown: consistent_value(&resources, &shared, &WARHORSE_PLAGUE_COOLDOWN)?,
+        warhorse_buff_duration: consistent_value(&resources, &shared, &WARHORSE_DURATION)?,
+        warhorse_buff_range: consistent_value(&resources, &shared, &WARHORSE_RANGE)?,
+        bag_scale: consistent_value(&resources, &shared, &BAG_SCALE)?,
+    })
+}
+
+#[tauri::command]
+fn load_game_assets(data_directory: Option<String>) -> Result<AssetResponse, String> {
+    let directory = data_directory
+        .map(PathBuf::from)
+        .unwrap_or_else(default_game_data_directory);
+    let settings = read_asset_settings(&directory)?;
+    Ok(AssetResponse {
+        data_directory: directory.to_string_lossy().to_string(),
+        settings,
+    })
+}
+
+#[tauri::command]
+fn select_game_data_directory() -> Result<AssetResponse, String> {
+    let Some(directory) = FileDialog::new()
+        .set_title("Select the Kingdom Two Crowns Data folder")
+        .pick_folder()
+    else {
+        return Err("Folder selection was cancelled".into());
+    };
+    load_game_assets(Some(directory.to_string_lossy().to_string()))
+}
+
+fn write_targets(
+    resources: &mut [u8],
+    shared: &mut [u8],
+    targets: &[FloatTarget],
+    value: f32,
+) -> Result<(), String> {
+    for target in targets {
+        write_float(
+            if target.file == RESOURCES_ASSETS {
+                resources
+            } else {
+                shared
+            },
+            target.offset,
+            value,
+        )?;
+    }
+    Ok(())
+}
+
+fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
+    let values = [
+        settings.griffin_run_speed,
+        settings.griffin_forest_multiplier,
+        settings.griffin_run_stamina_rate,
+        settings.griffin_skill_stamina_cost,
+        settings.horse_run_speed,
+        settings.horse_run_stamina_rate,
+        settings.warhorse_run_speed,
+        settings.warhorse_run_stamina_rate,
+        settings.warhorse_skill_stamina_cost,
+        settings.warhorse_cooldown,
+        settings.warhorse_plague_cooldown,
+        settings.warhorse_buff_duration,
+        settings.warhorse_buff_range,
+        settings.bag_scale,
+    ];
+    if values
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0 || *value > 1000.0)
+    {
+        return Err("Every value must be between 0 and 1000".into());
+    }
+    Ok(())
+}
+
+fn atomic_replace(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let temp = path.with_extension("ktcedit.tmp");
+    fs::write(&temp, bytes).map_err(|err| format!("Could not write the temporary file: {err}"))?;
+    fs::rename(&temp, path).map_err(|err| format!("Could not replace {}: {err}", path.display()))
+}
+
+#[tauri::command]
+fn apply_game_assets(
+    data_directory: String,
+    settings: AssetSettings,
+) -> Result<AssetApplyResponse, String> {
+    validate_settings(&settings)?;
+    if game_is_running() {
+        return Err("Close Kingdom Two Crowns before applying changes".into());
+    }
+    let directory = PathBuf::from(data_directory);
+    let _current = read_asset_settings(&directory)?;
+    let resources_path = directory.join(RESOURCES_ASSETS);
+    let shared_path = directory.join(SHARED_ASSETS);
+    let mut resources = fs::read(&resources_path).map_err(|err| err.to_string())?;
+    let mut shared = fs::read(&shared_path).map_err(|err| err.to_string())?;
+
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &GRIFFIN_RUN,
+        settings.griffin_run_speed,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &GRIFFIN_FOREST,
+        settings.griffin_forest_multiplier,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &GRIFFIN_RUN_STAMINA,
+        settings.griffin_run_stamina_rate,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &GRIFFIN_SKILL_COST,
+        settings.griffin_skill_stamina_cost,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &HORSE_RUN,
+        settings.horse_run_speed,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &HORSE_RUN_STAMINA,
+        settings.horse_run_stamina_rate,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &WARHORSE_RUN,
+        settings.warhorse_run_speed,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &WARHORSE_RUN_STAMINA,
+        settings.warhorse_run_stamina_rate,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &WARHORSE_SKILL_COST,
+        settings.warhorse_skill_stamina_cost,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &WARHORSE_COOLDOWN,
+        settings.warhorse_cooldown,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &WARHORSE_PLAGUE_COOLDOWN,
+        settings.warhorse_plague_cooldown,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &WARHORSE_DURATION,
+        settings.warhorse_buff_duration,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &WARHORSE_RANGE,
+        settings.warhorse_buff_range,
+    )?;
+    write_targets(&mut resources, &mut shared, &BAG_SCALE, settings.bag_scale)?;
+
+    let resources_backup = create_backup(&resources_path)?;
+    let shared_backup = create_backup(&shared_path)?;
+    atomic_replace(&resources_path, &resources)?;
+    if let Err(error) = atomic_replace(&shared_path, &shared) {
+        let _ = fs::copy(&resources_backup, &resources_path);
+        return Err(error);
+    }
+    let verified = read_asset_settings(&directory)?;
+    Ok(AssetApplyResponse {
+        resources_backup: resources_backup.to_string_lossy().to_string(),
+        shared_assets_backup: shared_backup.to_string_lossy().to_string(),
+        settings: verified,
+    })
+}
+
+fn game_is_running() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        return std::process::Command::new("tasklist")
+            .output()
+            .map(|output| {
+                String::from_utf8_lossy(&output.stdout)
+                    .to_lowercase()
+                    .contains("kingdomtwocrowns")
+            })
+            .unwrap_or(false);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new("pgrep")
+            .args(["-if", "KingdomTwoCrowns"])
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
+}
+
+#[tauri::command]
+fn restore_game_assets(
+    data_directory: String,
+    resources_backup: String,
+    shared_assets_backup: String,
+) -> Result<AssetResponse, String> {
+    if game_is_running() {
+        return Err("Close Kingdom Two Crowns before restoring a backup".into());
+    }
+    let directory = PathBuf::from(data_directory);
+    let resources_backup = PathBuf::from(resources_backup);
+    let shared_backup = PathBuf::from(shared_assets_backup);
+    let resources_bytes = fs::read(&resources_backup)
+        .map_err(|err| format!("Could not read the resources backup: {err}"))?;
+    let shared_bytes = fs::read(&shared_backup)
+        .map_err(|err| format!("Could not read the sharedassets backup: {err}"))?;
+    if resources_bytes.len() as u64 != EXPECTED_RESOURCES_SIZE
+        || shared_bytes.len() as u64 != EXPECTED_SHARED_SIZE
+    {
+        return Err("The backup file sizes are invalid".into());
+    }
+    let resources_path = directory.join(RESOURCES_ASSETS);
+    let shared_path = directory.join(SHARED_ASSETS);
+    let _safety_resources = create_backup(&resources_path)?;
+    let _safety_shared = create_backup(&shared_path)?;
+    atomic_replace(&resources_path, &resources_bytes)?;
+    atomic_replace(&shared_path, &shared_bytes)?;
+    load_game_assets(Some(directory.to_string_lossy().to_string()))
 }
 
 #[cfg(test)]
@@ -356,7 +852,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_save_file,
             save_save_file,
-            select_save_file
+            select_save_file,
+            load_game_assets,
+            select_game_data_directory,
+            apply_game_assets,
+            restore_game_assets
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

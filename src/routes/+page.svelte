@@ -42,12 +42,47 @@
     data: JSONValue;
   }
 
+  interface AssetSettings {
+    griffinRunSpeed: number;
+    griffinForestMultiplier: number;
+    griffinRunStaminaRate: number;
+    griffinSkillStaminaCost: number;
+    horseRunSpeed: number;
+    horseRunStaminaRate: number;
+    warhorseRunSpeed: number;
+    warhorseRunStaminaRate: number;
+    warhorseSkillStaminaCost: number;
+    warhorseCooldown: number;
+    warhorsePlagueCooldown: number;
+    warhorseBuffDuration: number;
+    warhorseBuffRange: number;
+    bagScale: number;
+  }
+
+  interface AssetResponse {
+    dataDirectory: string;
+    settings: AssetSettings;
+  }
+
+  interface AssetApplyResponse {
+    resourcesBackup: string;
+    sharedAssetsBackup: string;
+    settings: AssetSettings;
+  }
+
   let filePath = $state<string | null>(null);
   let data = $state<JSONValue | null>(null);
   let isLoading = $state(false);
   let statusType = $state<"error" | "success" | null>(null);
   let statusMessage = $state<string | null>(null);
   let backupPath = $state<string | null>(null);
+  let assetMode = $state(false);
+  let assetDirectory = $state<string | null>(null);
+  let assetSettings = $state<AssetSettings | null>(null);
+  let assetBusy = $state(false);
+  let assetStatus = $state<string | null>(null);
+  let assetError = $state<string | null>(null);
+  let assetBackups = $state<string[]>([]);
   let selectedKey = $state<string | null>(null);
   let selectedCampaign = $state(0);
   let selectedIsland = $state(0);
@@ -1193,10 +1228,147 @@
       showError(message);
     }
   }
+
+  async function openAssetEditor(selectFolder = false) {
+    assetMode = true;
+    assetBusy = true;
+    assetStatus = null;
+    assetError = null;
+    try {
+      const response = selectFolder
+        ? await invoke<AssetResponse>("select_game_data_directory")
+        : await invoke<AssetResponse>("load_game_assets", { dataDirectory: assetDirectory });
+      assetDirectory = response.dataDirectory;
+      assetSettings = response.settings;
+      assetStatus = "Loaded the current values from the game.";
+    } catch (error) {
+      assetError = String(error);
+    } finally {
+      assetBusy = false;
+    }
+  }
+
+  async function applyAssetChanges() {
+    if (!assetDirectory || !assetSettings) return;
+    assetBusy = true;
+    assetStatus = null;
+    assetError = null;
+    try {
+      const response = await invoke<AssetApplyResponse>("apply_game_assets", {
+        dataDirectory: assetDirectory,
+        settings: assetSettings
+      });
+      assetSettings = response.settings;
+      assetBackups = [response.resourcesBackup, response.sharedAssetsBackup];
+      assetStatus = "Changes applied and verified in both resources.assets and sharedassets0.assets.";
+    } catch (error) {
+      assetError = String(error);
+    } finally {
+      assetBusy = false;
+    }
+  }
+
+  async function restoreAssetChanges() {
+    if (!assetDirectory || assetBackups.length !== 2) return;
+    assetBusy = true;
+    assetStatus = null;
+    assetError = null;
+    try {
+      const response = await invoke<AssetResponse>("restore_game_assets", {
+        dataDirectory: assetDirectory,
+        resourcesBackup: assetBackups[0],
+        sharedAssetsBackup: assetBackups[1]
+      });
+      assetSettings = response.settings;
+      assetBackups = [];
+      assetStatus = "Backups restored. A safety backup of the previous state was also created.";
+    } catch (error) {
+      assetError = String(error);
+    } finally {
+      assetBusy = false;
+    }
+  }
+
+  function updateAssetNumber(key: keyof AssetSettings, event: Event) {
+    if (!assetSettings) return;
+    const value = Number((event.currentTarget as HTMLInputElement).value);
+    assetSettings = { ...assetSettings, [key]: value };
+  }
 </script>
 
 <main>
-  {#if !data}
+  {#if assetMode}
+    <div class="asset-editor-shell">
+      <header class="asset-header">
+        <div>
+          <h1>Game Assets</h1>
+          <p class="muted">Edit mounts and bag items directly in Kingdom Two Crowns.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" onclick={() => { assetMode = false; assetStatus = null; assetError = null; }}>Back</button>
+          <button type="button" onclick={() => openAssetEditor(true)} disabled={assetBusy}>Select Data Folder</button>
+          <button type="button" onclick={() => openAssetEditor(false)} disabled={assetBusy}>Reload</button>
+          <button type="button" onclick={restoreAssetChanges} disabled={assetBusy || assetBackups.length !== 2}>Restore</button>
+          <button class="primary" type="button" onclick={applyAssetChanges} disabled={assetBusy || !assetSettings}>Apply</button>
+        </div>
+      </header>
+
+      <section class="asset-content">
+        {#if assetDirectory}<p class="file-path">Data: {assetDirectory}</p>{/if}
+        {#if assetStatus}<p class="status success">{assetStatus}</p>{/if}
+        {#if assetError}<p class="status error">{assetError}</p>{/if}
+        {#if assetBusy}<p class="status info">Processing…</p>{/if}
+
+        {#if assetSettings}
+          <div class="asset-grid">
+            <section class="card asset-card">
+              <h2>Griffin</h2>
+              <label>Run speed<input type="number" step="0.1" value={assetSettings.griffinRunSpeed} oninput={(e) => updateAssetNumber('griffinRunSpeed', e)} /></label>
+              <label>Forest multiplier<input type="number" step="0.1" value={assetSettings.griffinForestMultiplier} oninput={(e) => updateAssetNumber('griffinForestMultiplier', e)} /></label>
+              <label>Run stamina rate<input type="number" step="0.01" value={assetSettings.griffinRunStaminaRate} oninput={(e) => updateAssetNumber('griffinRunStaminaRate', e)} /></label>
+              <label>Skill stamina cost<input type="number" step="0.01" value={assetSettings.griffinSkillStaminaCost} oninput={(e) => updateAssetNumber('griffinSkillStaminaCost', e)} /></label>
+            </section>
+
+            <section class="card asset-card">
+              <h2>Regular Horse</h2>
+              <label>Run speed<input type="number" step="0.1" value={assetSettings.horseRunSpeed} oninput={(e) => updateAssetNumber('horseRunSpeed', e)} /></label>
+              <label>Run stamina rate<input type="number" step="0.01" value={assetSettings.horseRunStaminaRate} oninput={(e) => updateAssetNumber('horseRunStaminaRate', e)} /></label>
+            </section>
+
+            <section class="card asset-card">
+              <h2>Warhorse</h2>
+              <label>Run speed<input type="number" step="0.1" value={assetSettings.warhorseRunSpeed} oninput={(e) => updateAssetNumber('warhorseRunSpeed', e)} /></label>
+              <label>Run stamina rate<input type="number" step="0.01" value={assetSettings.warhorseRunStaminaRate} oninput={(e) => updateAssetNumber('warhorseRunStaminaRate', e)} /></label>
+              <label>Skill stamina cost<input type="number" step="0.01" value={assetSettings.warhorseSkillStaminaCost} oninput={(e) => updateAssetNumber('warhorseSkillStaminaCost', e)} /></label>
+              <label>Skill cooldown (seconds)<input type="number" step="0.1" value={assetSettings.warhorseCooldown} oninput={(e) => updateAssetNumber('warhorseCooldown', e)} /></label>
+              <label>Plague cooldown (seconds)<input type="number" step="0.1" value={assetSettings.warhorsePlagueCooldown} oninput={(e) => updateAssetNumber('warhorsePlagueCooldown', e)} /></label>
+              <label>Buff duration (seconds)<input type="number" step="0.1" value={assetSettings.warhorseBuffDuration} oninput={(e) => updateAssetNumber('warhorseBuffDuration', e)} /></label>
+              <label>Buff range<input type="number" step="0.1" value={assetSettings.warhorseBuffRange} oninput={(e) => updateAssetNumber('warhorseBuffRange', e)} /></label>
+            </section>
+
+            <section class="card asset-card">
+              <h2>Bag</h2>
+              <label>Coin and gem scale<input type="number" step="0.05" value={assetSettings.bagScale} oninput={(e) => updateAssetNumber('bagScale', e)} /></label>
+              <p class="muted">This value is applied to coins, gems, and biome variants.</p>
+            </section>
+          </div>
+          <section class="card safety-card">
+            <h3>Safety</h3>
+            <p>The app writes only when both files match the verified game profile. Two backups are created before every change.</p>
+            {#if assetBackups.length}
+              <ul>{#each assetBackups as path}<li><code>{path}</code></li>{/each}</ul>
+            {/if}
+          </section>
+        {:else if !assetBusy}
+          <section class="card empty-assets">
+            <h2>Assets not loaded</h2>
+            <p>Select <code>KingdomTwoCrowns.app/Contents/Resources/Data</code> if the game is not installed in the default Steam location.</p>
+            <button class="primary" type="button" onclick={() => openAssetEditor(true)}>Select Data Folder</button>
+          </section>
+        {/if}
+      </section>
+    </div>
+  {:else if !data}
     <div class="welcome">
       <div class="welcome-content">
         <h1>{t.welcome.title}</h1>
@@ -1238,6 +1410,9 @@
               </svg>
               {t.welcome.openFile}
             {/if}
+          </button>
+          <button class="large" onclick={() => openAssetEditor(false)} disabled={assetBusy}>
+            Edit Game Assets
           </button>
         </div>
 
@@ -3598,5 +3773,77 @@
     display: flex;
     gap: 0.4rem;
     flex-wrap: wrap;
+  }
+
+  .asset-editor-shell {
+    min-height: 100vh;
+    background: var(--color-bg-primary);
+  }
+
+  .asset-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-secondary);
+  }
+
+  .asset-header h1,
+  .asset-card h2 {
+    margin: 0;
+  }
+
+  .asset-content {
+    width: min(1100px, calc(100% - 2rem));
+    margin: 0 auto;
+    padding: 1.5rem 0 3rem;
+  }
+
+  .asset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .asset-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .asset-card label {
+    display: grid;
+    grid-template-columns: 1fr 110px;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .asset-card input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .safety-card,
+  .empty-assets {
+    margin-top: 1rem;
+  }
+
+  .safety-card code {
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 700px) {
+    .asset-header {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .asset-header .header-actions {
+      width: 100%;
+      flex-wrap: wrap;
+    }
   }
 </style>
