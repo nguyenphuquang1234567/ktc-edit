@@ -51,6 +51,26 @@ const WARHORSE_PLAGUE_COOLDOWN: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [58
 const WARHORSE_RANGE: [FloatTarget; 4] =
     targets(RESOURCES_ASSETS, [58179816, 58288104, 58169272, 58169160]);
 const WARHORSE_DURATION: [FloatTarget; 1] = targets(RESOURCES_ASSETS, [55809144]);
+const ARCHER_SHOOT_PREP: [FloatTarget; 3] =
+    targets(RESOURCES_ASSETS, [56622632, 56622952, 56623272]);
+const ARCHER_SHOOT_COOLDOWN: [FloatTarget; 3] =
+    targets(RESOURCES_ASSETS, [56622636, 56622956, 56623276]);
+const ARCHER_KNIGHT_COOLDOWN: [FloatTarget; 3] =
+    targets(RESOURCES_ASSETS, [56622648, 56622968, 56623288]);
+const ARCHER_INTERVAL_MIN: [FloatTarget; 3] =
+    targets(RESOURCES_ASSETS, [56622664, 56622984, 56623304]);
+const ARCHER_INTERVAL_MAX: [FloatTarget; 3] =
+    targets(RESOURCES_ASSETS, [56622668, 56622988, 56623308]);
+const ARCHER_FORMATION_INTERVAL_MIN: [FloatTarget; 3] =
+    targets(RESOURCES_ASSETS, [56622672, 56622992, 56623312]);
+const ARCHER_FORMATION_INTERVAL_MAX: [FloatTarget; 3] =
+    targets(RESOURCES_ASSETS, [56622676, 56622996, 56623316]);
+const BUILDER_WALK_SPEED: [FloatTarget; 2] =
+    targets(RESOURCES_ASSETS, [56611624, 56611784]);
+const BUILDER_RUN_SPEED: [FloatTarget; 2] =
+    targets(RESOURCES_ASSETS, [56611628, 56611788]);
+const BUILDER_WORK_TIME: [FloatTarget; 2] =
+    targets(RESOURCES_ASSETS, [56611632, 56611792]);
 const BAG_SCALE: [FloatTarget; 12] = [
     FloatTarget {
         file: SHARED_ASSETS,
@@ -131,6 +151,16 @@ struct AssetSettings {
     warhorse_plague_cooldown: f32,
     warhorse_buff_duration: f32,
     warhorse_buff_range: f32,
+    archer_shoot_prep_time: f32,
+    archer_shoot_cooldown_time: f32,
+    archer_shoot_cooldown_with_knight_time: f32,
+    archer_interval_min: f32,
+    archer_interval_max: f32,
+    archer_formation_interval_min: f32,
+    archer_formation_interval_max: f32,
+    builder_walk_speed: f32,
+    builder_run_speed: f32,
+    builder_work_time: f32,
     bag_scale: f32,
 }
 
@@ -509,6 +539,32 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
         warhorse_plague_cooldown: consistent_value(&resources, &shared, &WARHORSE_PLAGUE_COOLDOWN)?,
         warhorse_buff_duration: consistent_value(&resources, &shared, &WARHORSE_DURATION)?,
         warhorse_buff_range: consistent_value(&resources, &shared, &WARHORSE_RANGE)?,
+        archer_shoot_prep_time: consistent_value(&resources, &shared, &ARCHER_SHOOT_PREP)?,
+        archer_shoot_cooldown_time: consistent_value(
+            &resources,
+            &shared,
+            &ARCHER_SHOOT_COOLDOWN,
+        )?,
+        archer_shoot_cooldown_with_knight_time: consistent_value(
+            &resources,
+            &shared,
+            &ARCHER_KNIGHT_COOLDOWN,
+        )?,
+        archer_interval_min: consistent_value(&resources, &shared, &ARCHER_INTERVAL_MIN)?,
+        archer_interval_max: consistent_value(&resources, &shared, &ARCHER_INTERVAL_MAX)?,
+        archer_formation_interval_min: consistent_value(
+            &resources,
+            &shared,
+            &ARCHER_FORMATION_INTERVAL_MIN,
+        )?,
+        archer_formation_interval_max: consistent_value(
+            &resources,
+            &shared,
+            &ARCHER_FORMATION_INTERVAL_MAX,
+        )?,
+        builder_walk_speed: consistent_value(&resources, &shared, &BUILDER_WALK_SPEED)?,
+        builder_run_speed: consistent_value(&resources, &shared, &BUILDER_RUN_SPEED)?,
+        builder_work_time: consistent_value(&resources, &shared, &BUILDER_WORK_TIME)?,
         bag_scale: consistent_value(&resources, &shared, &BAG_SCALE)?,
     })
 }
@@ -571,6 +627,16 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
         settings.warhorse_plague_cooldown,
         settings.warhorse_buff_duration,
         settings.warhorse_buff_range,
+        settings.archer_shoot_prep_time,
+        settings.archer_shoot_cooldown_time,
+        settings.archer_shoot_cooldown_with_knight_time,
+        settings.archer_interval_min,
+        settings.archer_interval_max,
+        settings.archer_formation_interval_min,
+        settings.archer_formation_interval_max,
+        settings.builder_walk_speed,
+        settings.builder_run_speed,
+        settings.builder_work_time,
         settings.bag_scale,
     ];
     if values
@@ -578,6 +644,12 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
         .any(|value| !value.is_finite() || *value < 0.0 || *value > 1000.0)
     {
         return Err("Every value must be between 0 and 1000".into());
+    }
+    if settings.archer_interval_min > settings.archer_interval_max {
+        return Err("Archer normal interval minimum cannot exceed its maximum".into());
+    }
+    if settings.archer_formation_interval_min > settings.archer_formation_interval_max {
+        return Err("Archer formation interval minimum cannot exceed its maximum".into());
     }
     Ok(())
 }
@@ -681,6 +753,66 @@ fn apply_game_assets(
         &mut shared,
         &WARHORSE_RANGE,
         settings.warhorse_buff_range,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &ARCHER_SHOOT_PREP,
+        settings.archer_shoot_prep_time,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &ARCHER_SHOOT_COOLDOWN,
+        settings.archer_shoot_cooldown_time,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &ARCHER_KNIGHT_COOLDOWN,
+        settings.archer_shoot_cooldown_with_knight_time,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &ARCHER_INTERVAL_MIN,
+        settings.archer_interval_min,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &ARCHER_INTERVAL_MAX,
+        settings.archer_interval_max,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &ARCHER_FORMATION_INTERVAL_MIN,
+        settings.archer_formation_interval_min,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &ARCHER_FORMATION_INTERVAL_MAX,
+        settings.archer_formation_interval_max,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &BUILDER_WALK_SPEED,
+        settings.builder_walk_speed,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &BUILDER_RUN_SPEED,
+        settings.builder_run_speed,
+    )?;
+    write_targets(
+        &mut resources,
+        &mut shared,
+        &BUILDER_WORK_TIME,
+        settings.builder_work_time,
     )?;
     write_targets(&mut resources, &mut shared, &BAG_SCALE, settings.bag_scale)?;
 
