@@ -56,6 +56,16 @@
     warhorsePlagueCooldown: number;
     warhorseBuffDuration: number;
     warhorseBuffRange: number;
+    archerShootPrepTime: number;
+    archerShootCooldownTime: number;
+    archerShootCooldownWithKnightTime: number;
+    archerIntervalMin: number;
+    archerIntervalMax: number;
+    archerFormationIntervalMin: number;
+    archerFormationIntervalMax: number;
+    builderWalkSpeed: number;
+    builderRunSpeed: number;
+    builderWorkTime: number;
     bagScale: number;
   }
 
@@ -1302,7 +1312,7 @@
       <header class="asset-header">
         <div>
           <h1>Game Assets</h1>
-          <p class="muted">Edit mounts and bag items directly in Kingdom Two Crowns.</p>
+          <p class="muted">Edit mounts, units, and bag items directly in Kingdom Two Crowns.</p>
         </div>
         <div class="header-actions">
           <button type="button" onclick={() => { assetMode = false; assetStatus = null; assetError = null; }}>Back</button>
@@ -1344,6 +1354,26 @@
               <label>Plague cooldown (seconds)<input type="number" step="0.1" value={assetSettings.warhorsePlagueCooldown} oninput={(e) => updateAssetNumber('warhorsePlagueCooldown', e)} /></label>
               <label>Buff duration (seconds)<input type="number" step="0.1" value={assetSettings.warhorseBuffDuration} oninput={(e) => updateAssetNumber('warhorseBuffDuration', e)} /></label>
               <label>Buff range<input type="number" step="0.1" value={assetSettings.warhorseBuffRange} oninput={(e) => updateAssetNumber('warhorseBuffRange', e)} /></label>
+            </section>
+
+            <section class="card asset-card">
+              <h2>Archer</h2>
+              <label>Shoot preparation (seconds)<input type="number" min="0" step="0.05" value={assetSettings.archerShootPrepTime} oninput={(e) => updateAssetNumber('archerShootPrepTime', e)} /></label>
+              <label>Normal cooldown (seconds)<input type="number" min="0" step="0.05" value={assetSettings.archerShootCooldownTime} oninput={(e) => updateAssetNumber('archerShootCooldownTime', e)} /></label>
+              <label>Knight squad cooldown (seconds)<input type="number" min="0" step="0.05" value={assetSettings.archerShootCooldownWithKnightTime} oninput={(e) => updateAssetNumber('archerShootCooldownWithKnightTime', e)} /></label>
+              <label>Normal interval minimum (seconds)<input type="number" min="0" step="0.05" value={assetSettings.archerIntervalMin} oninput={(e) => updateAssetNumber('archerIntervalMin', e)} /></label>
+              <label>Normal interval maximum (seconds)<input type="number" min="0" step="0.05" value={assetSettings.archerIntervalMax} oninput={(e) => updateAssetNumber('archerIntervalMax', e)} /></label>
+              <label>Formation interval minimum (seconds)<input type="number" min="0" step="0.05" value={assetSettings.archerFormationIntervalMin} oninput={(e) => updateAssetNumber('archerFormationIntervalMin', e)} /></label>
+              <label>Formation interval maximum (seconds)<input type="number" min="0" step="0.05" value={assetSettings.archerFormationIntervalMax} oninput={(e) => updateAssetNumber('archerFormationIntervalMax', e)} /></label>
+              <p class="muted">Applied to regular, Norse Lands, and Knight squad archers.</p>
+            </section>
+
+            <section class="card asset-card">
+              <h2>Builder</h2>
+              <label>Walk speed<input type="number" min="0" step="0.05" value={assetSettings.builderWalkSpeed} oninput={(e) => updateAssetNumber('builderWalkSpeed', e)} /></label>
+              <label>Run speed<input type="number" min="0" step="0.05" value={assetSettings.builderRunSpeed} oninput={(e) => updateAssetNumber('builderRunSpeed', e)} /></label>
+              <label>Work time (seconds)<input type="number" min="0" step="0.05" value={assetSettings.builderWorkTime} oninput={(e) => updateAssetNumber('builderWorkTime', e)} /></label>
+              <p class="muted">Applied to regular and Norse Lands builders. Lower work time means faster building and chopping.</p>
             </section>
 
             <section class="card asset-card">
