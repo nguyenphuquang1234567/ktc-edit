@@ -39,9 +39,42 @@ const GRIFFIN_SKILL_COST: [FloatTarget; 5] = targets(
     RESOURCES_ASSETS,
     [57391040, 57529680, 57847760, 59448864, 59448944],
 );
-const HORSE_RUN: [FloatTarget; 3] = targets(RESOURCES_ASSETS, [56693532, 57274316, 57275076]);
-const HORSE_RUN_STAMINA: [FloatTarget; 3] =
-    targets(RESOURCES_ASSETS, [56693544, 57274328, 57275088]);
+const HORSE_RUN: [FloatTarget; 4] = [
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 56693532,
+    },
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 57274316,
+    },
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 57275076,
+    },
+    FloatTarget {
+        file: SHARED_ASSETS,
+        offset: 59686372,
+    },
+];
+const HORSE_RUN_STAMINA: [FloatTarget; 4] = [
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 56693544,
+    },
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 57274328,
+    },
+    FloatTarget {
+        file: RESOURCES_ASSETS,
+        offset: 57275088,
+    },
+    FloatTarget {
+        file: SHARED_ASSETS,
+        offset: 59686384,
+    },
+];
 const WARHORSE_RUN: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56670580, 57793044]);
 const WARHORSE_RUN_STAMINA: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56670592, 57793056]);
 const WARHORSE_SKILL_COST: [FloatTarget; 4] =
@@ -65,12 +98,9 @@ const ARCHER_FORMATION_INTERVAL_MIN: [FloatTarget; 3] =
     targets(RESOURCES_ASSETS, [56622672, 56622992, 56623312]);
 const ARCHER_FORMATION_INTERVAL_MAX: [FloatTarget; 3] =
     targets(RESOURCES_ASSETS, [56622676, 56622996, 56623316]);
-const BUILDER_WALK_SPEED: [FloatTarget; 2] =
-    targets(RESOURCES_ASSETS, [56611624, 56611784]);
-const BUILDER_RUN_SPEED: [FloatTarget; 2] =
-    targets(RESOURCES_ASSETS, [56611628, 56611788]);
-const BUILDER_WORK_TIME: [FloatTarget; 2] =
-    targets(RESOURCES_ASSETS, [56611632, 56611792]);
+const BUILDER_WALK_SPEED: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56611624, 56611784]);
+const BUILDER_RUN_SPEED: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56611628, 56611788]);
+const BUILDER_WORK_TIME: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56611632, 56611792]);
 const BAG_SCALE: [FloatTarget; 12] = [
     FloatTarget {
         file: SHARED_ASSETS,
@@ -521,6 +551,20 @@ fn consistent_value(
     Ok(value)
 }
 
+fn primary_value(resources: &[u8], shared: &[u8], targets: &[FloatTarget]) -> Result<f32, String> {
+    let target = targets
+        .first()
+        .ok_or_else(|| "No target offsets configured".to_string())?;
+    read_float(
+        if target.file == RESOURCES_ASSETS {
+            resources
+        } else {
+            shared
+        },
+        target.offset,
+    )
+}
+
 fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
     validate_asset_directory(directory)?;
     let resources = fs::read(directory.join(RESOURCES_ASSETS)).map_err(|err| err.to_string())?;
@@ -530,8 +574,11 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
         griffin_forest_multiplier: consistent_value(&resources, &shared, &GRIFFIN_FOREST)?,
         griffin_run_stamina_rate: consistent_value(&resources, &shared, &GRIFFIN_RUN_STAMINA)?,
         griffin_skill_stamina_cost: consistent_value(&resources, &shared, &GRIFFIN_SKILL_COST)?,
-        horse_run_speed: consistent_value(&resources, &shared, &HORSE_RUN)?,
-        horse_run_stamina_rate: consistent_value(&resources, &shared, &HORSE_RUN_STAMINA)?,
+        // Older ktc-edit builds only changed the three resources.assets variants.
+        // Read the primary variant so users can open those files and use Apply to
+        // synchronize the previously omitted sharedassets0.assets prefab.
+        horse_run_speed: primary_value(&resources, &shared, &HORSE_RUN)?,
+        horse_run_stamina_rate: primary_value(&resources, &shared, &HORSE_RUN_STAMINA)?,
         warhorse_run_speed: consistent_value(&resources, &shared, &WARHORSE_RUN)?,
         warhorse_run_stamina_rate: consistent_value(&resources, &shared, &WARHORSE_RUN_STAMINA)?,
         warhorse_skill_stamina_cost: consistent_value(&resources, &shared, &WARHORSE_SKILL_COST)?,
@@ -540,11 +587,7 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
         warhorse_buff_duration: consistent_value(&resources, &shared, &WARHORSE_DURATION)?,
         warhorse_buff_range: consistent_value(&resources, &shared, &WARHORSE_RANGE)?,
         archer_shoot_prep_time: consistent_value(&resources, &shared, &ARCHER_SHOOT_PREP)?,
-        archer_shoot_cooldown_time: consistent_value(
-            &resources,
-            &shared,
-            &ARCHER_SHOOT_COOLDOWN,
-        )?,
+        archer_shoot_cooldown_time: consistent_value(&resources, &shared, &ARCHER_SHOOT_COOLDOWN)?,
         archer_shoot_cooldown_with_knight_time: consistent_value(
             &resources,
             &shared,
@@ -823,6 +866,18 @@ fn apply_game_assets(
         let _ = fs::copy(&resources_backup, &resources_path);
         return Err(error);
     }
+
+    let written_resources = fs::read(&resources_path).map_err(|err| err.to_string())?;
+    let written_shared = fs::read(&shared_path).map_err(|err| err.to_string())?;
+    let verified_horse_run = consistent_value(&written_resources, &written_shared, &HORSE_RUN)?;
+    let verified_horse_stamina =
+        consistent_value(&written_resources, &written_shared, &HORSE_RUN_STAMINA)?;
+    if (verified_horse_run - settings.horse_run_speed).abs() > 0.0001
+        || (verified_horse_stamina - settings.horse_run_stamina_rate).abs() > 0.0001
+    {
+        return Err("Regular Horse values were not written consistently".into());
+    }
+
     let verified = read_asset_settings(&directory)?;
     Ok(AssetApplyResponse {
         resources_backup: resources_backup.to_string_lossy().to_string(),
@@ -973,6 +1028,18 @@ mod tests {
 
         let rewritten = read_save(&path);
         assert_eq!(rewritten, updated);
+    }
+
+    #[test]
+    fn regular_horse_targets_include_default_shared_asset_prefab() {
+        assert_eq!(HORSE_RUN.len(), 4);
+        assert_eq!(HORSE_RUN_STAMINA.len(), 4);
+        assert!(HORSE_RUN
+            .iter()
+            .any(|target| { target.file == SHARED_ASSETS && target.offset == 59_686_372 }));
+        assert!(HORSE_RUN_STAMINA
+            .iter()
+            .any(|target| { target.file == SHARED_ASSETS && target.offset == 59_686_384 }));
     }
 }
 
