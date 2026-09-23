@@ -14,6 +14,7 @@ use serde_json::Value;
 const SAVE_FILENAME: &str = "global-v35";
 const RESOURCES_ASSETS: &str = "resources.assets";
 const SHARED_ASSETS: &str = "sharedassets0.assets";
+const GLOBAL_MANAGERS_ASSETS: &str = "globalgamemanagers.assets";
 const EXPECTED_RESOURCES_SIZE: u64 = 59_975_696;
 const EXPECTED_SHARED_SIZE: u64 = 59_876_160;
 
@@ -23,132 +24,172 @@ struct FloatTarget {
     offset: usize,
 }
 
-const GRIFFIN_RUN: [FloatTarget; 5] = targets(
-    RESOURCES_ASSETS,
-    [56688996, 57507236, 57909764, 59403668, 59404436],
-);
-const GRIFFIN_FOREST: [FloatTarget; 5] = targets(
-    RESOURCES_ASSETS,
-    [56689000, 57507240, 57909768, 59403672, 59404440],
-);
-const GRIFFIN_RUN_STAMINA: [FloatTarget; 5] = targets(
-    RESOURCES_ASSETS,
-    [56689008, 57507248, 57909776, 59403680, 59404448],
-);
-const GRIFFIN_SKILL_COST: [FloatTarget; 5] = targets(
-    RESOURCES_ASSETS,
-    [57391040, 57529680, 57847760, 59448864, 59448944],
-);
-const HORSE_RUN: [FloatTarget; 4] = [
-    FloatTarget {
+#[derive(Clone, Copy)]
+struct ComponentFloatTarget {
+    file: &'static str,
+    game_object: &'static str,
+    relative_offset: usize,
+}
+
+const GRIFFIN_NAMES: [&str; 5] = [
+    "Griffin P1",
+    "Griffin Greece",
+    "Griffin P2",
+    "Griffin Skull P2",
+    "Griffin Skull P1",
+];
+const GRIFFIN_RUN: [ComponentFloatTarget; 5] =
+    component_targets(RESOURCES_ASSETS, GRIFFIN_NAMES, 196);
+const GRIFFIN_FOREST: [ComponentFloatTarget; 5] =
+    component_targets(RESOURCES_ASSETS, GRIFFIN_NAMES, 200);
+const GRIFFIN_RUN_STAMINA: [ComponentFloatTarget; 5] =
+    component_targets(RESOURCES_ASSETS, GRIFFIN_NAMES, 208);
+const GRIFFIN_SKILL_COST: [ComponentFloatTarget; 5] =
+    component_targets(RESOURCES_ASSETS, GRIFFIN_NAMES, 32);
+const HORSE_RUN: [ComponentFloatTarget; 4] = [
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 56693532,
+        game_object: "Horse Regular P1 Greece",
+        relative_offset: 188,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 57274316,
+        game_object: "Horse Regular P2 Greece",
+        relative_offset: 188,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 57275076,
+        game_object: "Horse Regular P2",
+        relative_offset: 196,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: SHARED_ASSETS,
-        offset: 59686372,
+        game_object: "Horse Regular",
+        relative_offset: 196,
     },
 ];
-const HORSE_RUN_STAMINA: [FloatTarget; 4] = [
-    FloatTarget {
+const HORSE_RUN_STAMINA: [ComponentFloatTarget; 4] = [
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 56693544,
+        game_object: "Horse Regular P1 Greece",
+        relative_offset: 200,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 57274328,
+        game_object: "Horse Regular P2 Greece",
+        relative_offset: 200,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 57275088,
+        game_object: "Horse Regular P2",
+        relative_offset: 208,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: SHARED_ASSETS,
-        offset: 59686384,
+        game_object: "Horse Regular",
+        relative_offset: 208,
     },
 ];
-const WARHORSE_RUN: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56670580, 57793044]);
-const WARHORSE_RUN_STAMINA: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56670592, 57793056]);
-const WARHORSE_SKILL_COST: [FloatTarget; 4] =
-    targets(RESOURCES_ASSETS, [58179744, 58288032, 58169200, 58169088]);
+const WARHORSE_NAMES: [&str; 2] = ["Warhorse P1", "Warhorse P2"];
+const WARHORSE_RUN: [ComponentFloatTarget; 2] =
+    component_targets(RESOURCES_ASSETS, WARHORSE_NAMES, 196);
+const WARHORSE_RUN_STAMINA: [ComponentFloatTarget; 2] =
+    component_targets(RESOURCES_ASSETS, WARHORSE_NAMES, 208);
+const WARHORSE_SKILL_NAMES: [&str; 4] = [
+    "Warhorse P1",
+    "Warhorse P2",
+    "Warhorse Plague P1",
+    "Warhorse Plague P2",
+];
+const WARHORSE_SKILL_COST: [ComponentFloatTarget; 4] =
+    component_targets(RESOURCES_ASSETS, WARHORSE_SKILL_NAMES, 32);
 const WARHORSE_COOLDOWN: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [58179764, 58288052]);
 const WARHORSE_PLAGUE_COOLDOWN: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [58169220, 58169108]);
 const WARHORSE_RANGE: [FloatTarget; 4] =
     targets(RESOURCES_ASSETS, [58179816, 58288104, 58169272, 58169160]);
 const WARHORSE_DURATION: [FloatTarget; 1] = targets(RESOURCES_ASSETS, [55809144]);
-const ARCHER_SHOOT_PREP: [FloatTarget; 3] =
-    targets(RESOURCES_ASSETS, [56622632, 56622952, 56623272]);
-const ARCHER_SHOOT_COOLDOWN: [FloatTarget; 3] =
-    targets(RESOURCES_ASSETS, [56622636, 56622956, 56623276]);
-const ARCHER_KNIGHT_COOLDOWN: [FloatTarget; 3] =
-    targets(RESOURCES_ASSETS, [56622648, 56622968, 56623288]);
-const ARCHER_INTERVAL_MIN: [FloatTarget; 3] =
-    targets(RESOURCES_ASSETS, [56622664, 56622984, 56623304]);
-const ARCHER_INTERVAL_MAX: [FloatTarget; 3] =
-    targets(RESOURCES_ASSETS, [56622668, 56622988, 56623308]);
-const ARCHER_FORMATION_INTERVAL_MIN: [FloatTarget; 3] =
-    targets(RESOURCES_ASSETS, [56622672, 56622992, 56623312]);
-const ARCHER_FORMATION_INTERVAL_MAX: [FloatTarget; 3] =
-    targets(RESOURCES_ASSETS, [56622676, 56622996, 56623316]);
-const BUILDER_WALK_SPEED: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56611624, 56611784]);
-const BUILDER_RUN_SPEED: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56611628, 56611788]);
-const BUILDER_WORK_TIME: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [56611632, 56611792]);
-const BAG_SCALE: [FloatTarget; 12] = [
-    FloatTarget {
+const ARCHER_NAMES: [&str; 3] = ["Archer_norselands", "Archer_Soldier_norselands", "Archer"];
+const ARCHER_SHOOT_PREP: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, ARCHER_NAMES, 72);
+const ARCHER_SHOOT_COOLDOWN: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, ARCHER_NAMES, 76);
+const ARCHER_KNIGHT_COOLDOWN: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, ARCHER_NAMES, 88);
+const ARCHER_INTERVAL_MIN: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, ARCHER_NAMES, 104);
+const ARCHER_INTERVAL_MAX: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, ARCHER_NAMES, 108);
+const ARCHER_FORMATION_INTERVAL_MIN: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, ARCHER_NAMES, 112);
+const ARCHER_FORMATION_INTERVAL_MAX: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, ARCHER_NAMES, 116);
+const BUILDER_NAMES: [&str; 2] = ["Worker_norselands", "Worker"];
+const BUILDER_WALK_SPEED: [ComponentFloatTarget; 2] =
+    component_targets(RESOURCES_ASSETS, BUILDER_NAMES, 40);
+const BUILDER_RUN_SPEED: [ComponentFloatTarget; 2] =
+    component_targets(RESOURCES_ASSETS, BUILDER_NAMES, 44);
+const BUILDER_WORK_TIME: [ComponentFloatTarget; 2] =
+    component_targets(RESOURCES_ASSETS, BUILDER_NAMES, 48);
+const BAG_SCALE: [ComponentFloatTarget; 12] = [
+    ComponentFloatTarget {
         file: SHARED_ASSETS,
-        offset: 52139272,
+        game_object: "BagGem",
+        relative_offset: 40,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: SHARED_ASSETS,
-        offset: 52139276,
+        game_object: "BagGem",
+        relative_offset: 44,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: SHARED_ASSETS,
-        offset: 52139280,
+        game_object: "BagGem",
+        relative_offset: 48,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: SHARED_ASSETS,
-        offset: 52139640,
+        game_object: "BagCoin",
+        relative_offset: 40,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: SHARED_ASSETS,
-        offset: 52139644,
+        game_object: "BagCoin",
+        relative_offset: 44,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: SHARED_ASSETS,
-        offset: 52139648,
+        game_object: "BagCoin",
+        relative_offset: 48,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 40580168,
+        game_object: "BagCoin_Norseland",
+        relative_offset: 40,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 40580172,
+        game_object: "BagCoin_Norseland",
+        relative_offset: 44,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 40580176,
+        game_object: "BagCoin_Norseland",
+        relative_offset: 48,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 40580248,
+        game_object: "BagCoin_greece",
+        relative_offset: 40,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 40580252,
+        game_object: "BagCoin_greece",
+        relative_offset: 44,
     },
-    FloatTarget {
+    ComponentFloatTarget {
         file: RESOURCES_ASSETS,
-        offset: 40580256,
+        game_object: "BagCoin_greece",
+        relative_offset: 48,
     },
 ];
 
@@ -159,6 +200,28 @@ const fn targets<const N: usize>(file: &'static str, offsets: [usize; N]) -> [Fl
         result[index] = FloatTarget {
             file,
             offset: offsets[index],
+        };
+        index += 1;
+    }
+    result
+}
+
+const fn component_targets<const N: usize>(
+    file: &'static str,
+    game_objects: [&'static str; N],
+    relative_offset: usize,
+) -> [ComponentFloatTarget; N] {
+    let mut result = [ComponentFloatTarget {
+        file,
+        game_object: "",
+        relative_offset,
+    }; N];
+    let mut index = 0;
+    while index < N {
+        result[index] = ComponentFloatTarget {
+            file,
+            game_object: game_objects[index],
+            relative_offset,
         };
         index += 1;
     }
@@ -494,6 +557,304 @@ fn validate_asset_directory(directory: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+struct UnityObject {
+    path_id: i64,
+    byte_start: usize,
+    byte_size: usize,
+    class_id: i32,
+}
+
+fn read_be_u32(bytes: &[u8], offset: usize) -> Result<u32, String> {
+    let value = bytes
+        .get(offset..offset + 4)
+        .ok_or_else(|| "Unity asset header is truncated".to_string())?;
+    Ok(u32::from_be_bytes(value.try_into().unwrap()))
+}
+
+fn read_be_u64(bytes: &[u8], offset: usize) -> Result<u64, String> {
+    let value = bytes
+        .get(offset..offset + 8)
+        .ok_or_else(|| "Unity asset header is truncated".to_string())?;
+    Ok(u64::from_be_bytes(value.try_into().unwrap()))
+}
+
+fn read_le_i16(bytes: &[u8], offset: &mut usize) -> Result<i16, String> {
+    let value = bytes
+        .get(*offset..*offset + 2)
+        .ok_or_else(|| "Unity asset metadata is truncated".to_string())?;
+    *offset += 2;
+    Ok(i16::from_le_bytes(value.try_into().unwrap()))
+}
+
+fn read_le_i32(bytes: &[u8], offset: &mut usize) -> Result<i32, String> {
+    let value = bytes
+        .get(*offset..*offset + 4)
+        .ok_or_else(|| "Unity asset metadata is truncated".to_string())?;
+    *offset += 4;
+    Ok(i32::from_le_bytes(value.try_into().unwrap()))
+}
+
+fn read_le_i64(bytes: &[u8], offset: &mut usize) -> Result<i64, String> {
+    let value = bytes
+        .get(*offset..*offset + 8)
+        .ok_or_else(|| "Unity asset metadata is truncated".to_string())?;
+    *offset += 8;
+    Ok(i64::from_le_bytes(value.try_into().unwrap()))
+}
+
+fn skip_c_string(bytes: &[u8], offset: &mut usize) -> Result<(), String> {
+    let remainder = bytes
+        .get(*offset..)
+        .ok_or_else(|| "Unity asset metadata is truncated".to_string())?;
+    let length = remainder
+        .iter()
+        .position(|byte| *byte == 0)
+        .ok_or_else(|| "Unity asset string is not terminated".to_string())?;
+    *offset += length + 1;
+    Ok(())
+}
+
+fn align_four(offset: &mut usize) {
+    *offset = (*offset + 3) & !3;
+}
+
+fn parse_unity_objects(bytes: &[u8]) -> Result<Vec<UnityObject>, String> {
+    if read_be_u32(bytes, 8)? != 22 {
+        return Err("Only Unity serialized-file version 22 is supported".into());
+    }
+    if bytes.get(16).copied() != Some(0) {
+        return Err("Big-endian Unity assets are not supported".into());
+    }
+    let data_offset = usize::try_from(read_be_u64(bytes, 32)?)
+        .map_err(|_| "Unity asset data offset is too large".to_string())?;
+    let mut cursor = 48;
+    skip_c_string(bytes, &mut cursor)?;
+    cursor += 4; // target platform
+    let type_tree_enabled = *bytes
+        .get(cursor)
+        .ok_or_else(|| "Unity asset metadata is truncated".to_string())?;
+    cursor += 1;
+    if type_tree_enabled != 0 {
+        return Err("Embedded Unity type trees are not supported by this reader".into());
+    }
+
+    let type_count = read_le_i32(bytes, &mut cursor)?;
+    if !(0..=10_000).contains(&type_count) {
+        return Err("Unity asset contains an invalid type count".into());
+    }
+    let mut class_ids = Vec::with_capacity(type_count as usize);
+    for _ in 0..type_count {
+        let class_id = read_le_i32(bytes, &mut cursor)?;
+        cursor += 1; // is stripped type
+        let _script_type_index = read_le_i16(bytes, &mut cursor)?;
+        if class_id == 114 {
+            cursor += 16; // script id
+        }
+        cursor += 16; // old type hash
+        if cursor > bytes.len() {
+            return Err("Unity serialized type is truncated".into());
+        }
+        class_ids.push(class_id);
+    }
+
+    let object_count = read_le_i32(bytes, &mut cursor)?;
+    if !(0..=2_000_000).contains(&object_count) {
+        return Err("Unity asset contains an invalid object count".into());
+    }
+    let mut objects = Vec::with_capacity(object_count as usize);
+    for _ in 0..object_count {
+        align_four(&mut cursor);
+        let path_id = read_le_i64(bytes, &mut cursor)?;
+        let relative_start = read_le_i64(bytes, &mut cursor)?;
+        let byte_size = read_le_i32(bytes, &mut cursor)?;
+        let type_id = read_le_i32(bytes, &mut cursor)?;
+        if relative_start < 0 || byte_size < 0 || type_id < 0 {
+            return Err("Unity asset contains an invalid object entry".into());
+        }
+        let class_id = *class_ids
+            .get(type_id as usize)
+            .ok_or_else(|| "Unity object references an unknown type".to_string())?;
+        let byte_start = data_offset
+            .checked_add(relative_start as usize)
+            .ok_or_else(|| "Unity object position overflowed".to_string())?;
+        let byte_size = byte_size as usize;
+        if byte_start
+            .checked_add(byte_size)
+            .filter(|end| *end <= bytes.len())
+            .is_none()
+        {
+            return Err("Unity object points outside the asset file".into());
+        }
+        objects.push(UnityObject {
+            path_id,
+            byte_start,
+            byte_size,
+            class_id,
+        });
+    }
+    Ok(objects)
+}
+
+fn object_bytes<'a>(bytes: &'a [u8], object: &UnityObject) -> Result<&'a [u8], String> {
+    bytes
+        .get(object.byte_start..object.byte_start + object.byte_size)
+        .ok_or_else(|| "Unity object points outside the asset file".to_string())
+}
+
+fn read_aligned_string(bytes: &[u8], cursor: &mut usize) -> Result<String, String> {
+    let length = read_le_i32(bytes, cursor)?;
+    if length < 0 {
+        return Err("Unity string has a negative length".into());
+    }
+    let value = bytes
+        .get(*cursor..*cursor + length as usize)
+        .ok_or_else(|| "Unity string is truncated".to_string())?;
+    *cursor += length as usize;
+    align_four(cursor);
+    String::from_utf8(value.to_vec()).map_err(|_| "Unity string is not UTF-8".to_string())
+}
+
+fn mono_script_class_name(bytes: &[u8], object: &UnityObject) -> Result<String, String> {
+    let raw = object_bytes(bytes, object)?;
+    let mut cursor = 0;
+    let _name = read_aligned_string(raw, &mut cursor)?;
+    cursor += 4 + 16; // execution order and properties hash
+    read_aligned_string(raw, &mut cursor)
+}
+
+fn game_object_data(bytes: &[u8], object: &UnityObject) -> Result<(String, Vec<i64>), String> {
+    let raw = object_bytes(bytes, object)?;
+    let mut cursor = 0;
+    let count = read_le_i32(raw, &mut cursor)?;
+    if !(0..=10_000).contains(&count) {
+        return Err("GameObject contains an invalid component count".into());
+    }
+    let mut components = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        let file_id = read_le_i32(raw, &mut cursor)?;
+        let path_id = read_le_i64(raw, &mut cursor)?;
+        if file_id == 0 {
+            components.push(path_id);
+        }
+    }
+    cursor += 4; // layer
+    let name = read_aligned_string(raw, &mut cursor)?;
+    Ok((name, components))
+}
+
+fn find_mono_script_path(global_managers: &[u8], class_name: &str) -> Result<i64, String> {
+    let objects = parse_unity_objects(global_managers)?;
+    for object in objects.iter().filter(|object| object.class_id == 115) {
+        if mono_script_class_name(global_managers, object)? == class_name {
+            return Ok(object.path_id);
+        }
+    }
+    Err(format!("Could not find MonoScript {class_name}"))
+}
+
+fn resolve_component_offset(
+    bytes: &[u8],
+    expected_script_path: i64,
+    game_object_name: &str,
+    relative_offset: usize,
+) -> Result<usize, String> {
+    let objects = parse_unity_objects(bytes)?;
+    let game_object = objects
+        .iter()
+        .filter(|object| object.class_id == 1)
+        .find_map(|object| {
+            game_object_data(bytes, object)
+                .ok()
+                .filter(|(name, _)| name == game_object_name)
+                .map(|data| (object, data.1))
+        })
+        .ok_or_else(|| format!("Could not find GameObject {game_object_name}"))?;
+
+    for component_path in game_object.1 {
+        let Some(component) = objects
+            .iter()
+            .find(|object| object.path_id == component_path && object.class_id == 114)
+        else {
+            continue;
+        };
+        let raw = object_bytes(bytes, component)?;
+        if raw.len() < 28 {
+            continue;
+        }
+        let owner_path = i64::from_le_bytes(raw[4..12].try_into().unwrap());
+        let script_file = i32::from_le_bytes(raw[16..20].try_into().unwrap());
+        let script_path = i64::from_le_bytes(raw[20..28].try_into().unwrap());
+        if owner_path == game_object.0.path_id
+            && script_file == 1
+            && script_path == expected_script_path
+        {
+            if relative_offset
+                .checked_add(4)
+                .filter(|end| *end <= component.byte_size)
+                .is_none()
+            {
+                return Err(format!(
+                    "Component field +{relative_offset} is outside {game_object_name}'s {}-byte blob",
+                    component.byte_size
+                ));
+            }
+            return Ok(component.byte_start + relative_offset);
+        }
+    }
+    Err(format!(
+        "Could not find the requested component on {game_object_name}"
+    ))
+}
+
+fn resolve_builtin_component_offset(
+    bytes: &[u8],
+    component_class_id: i32,
+    game_object_name: &str,
+    relative_offset: usize,
+) -> Result<usize, String> {
+    let objects = parse_unity_objects(bytes)?;
+    let game_object = objects
+        .iter()
+        .filter(|object| object.class_id == 1)
+        .find_map(|object| {
+            game_object_data(bytes, object)
+                .ok()
+                .filter(|(name, _)| name == game_object_name)
+                .map(|data| (object, data.1))
+        })
+        .ok_or_else(|| format!("Could not find GameObject {game_object_name}"))?;
+
+    for component_path in game_object.1 {
+        let Some(component) = objects.iter().find(|object| {
+            object.path_id == component_path && object.class_id == component_class_id
+        }) else {
+            continue;
+        };
+        let raw = object_bytes(bytes, component)?;
+        if raw.len() < 12 {
+            continue;
+        }
+        let owner_path = i64::from_le_bytes(raw[4..12].try_into().unwrap());
+        if owner_path == game_object.0.path_id {
+            if relative_offset
+                .checked_add(4)
+                .filter(|end| *end <= component.byte_size)
+                .is_none()
+            {
+                return Err(format!(
+                    "Component field +{relative_offset} is outside {game_object_name}'s {}-byte blob",
+                    component.byte_size
+                ));
+            }
+            return Ok(component.byte_start + relative_offset);
+        }
+    }
+    Err(format!(
+        "Could not find component class {component_class_id} on {game_object_name}"
+    ))
+}
+
 fn read_float(bytes: &[u8], offset: usize) -> Result<f32, String> {
     let slice = bytes
         .get(offset..offset + 4)
@@ -551,64 +912,238 @@ fn consistent_value(
     Ok(value)
 }
 
-fn primary_value(resources: &[u8], shared: &[u8], targets: &[FloatTarget]) -> Result<f32, String> {
+fn component_value(
+    resources: &[u8],
+    shared: &[u8],
+    script_path: i64,
+    target: &ComponentFloatTarget,
+) -> Result<f32, String> {
+    let bytes = if target.file == RESOURCES_ASSETS {
+        resources
+    } else {
+        shared
+    };
+    let offset = resolve_component_offset(
+        bytes,
+        script_path,
+        target.game_object,
+        target.relative_offset,
+    )?;
+    read_float(bytes, offset)
+}
+
+fn consistent_component_value(
+    resources: &[u8],
+    shared: &[u8],
+    script_path: i64,
+    targets: &[ComponentFloatTarget],
+) -> Result<f32, String> {
+    let first = targets
+        .first()
+        .ok_or_else(|| "No Steed targets configured".to_string())?;
+    let value = component_value(resources, shared, script_path, first)?;
+    for target in &targets[1..] {
+        let candidate = component_value(resources, shared, script_path, target)?;
+        if (candidate - value).abs() > 0.0001 {
+            return Err(format!(
+                "Steed variants in {} do not contain consistent values; restore a clean file first",
+                target.file
+            ));
+        }
+    }
+    Ok(value)
+}
+
+fn builtin_component_value(
+    resources: &[u8],
+    shared: &[u8],
+    component_class_id: i32,
+    target: &ComponentFloatTarget,
+) -> Result<f32, String> {
+    let bytes = if target.file == RESOURCES_ASSETS {
+        resources
+    } else {
+        shared
+    };
+    let offset = resolve_builtin_component_offset(
+        bytes,
+        component_class_id,
+        target.game_object,
+        target.relative_offset,
+    )?;
+    read_float(bytes, offset)
+}
+
+fn consistent_builtin_component_value(
+    resources: &[u8],
+    shared: &[u8],
+    component_class_id: i32,
+    targets: &[ComponentFloatTarget],
+) -> Result<f32, String> {
+    let first = targets
+        .first()
+        .ok_or_else(|| "No component targets configured".to_string())?;
+    let value = builtin_component_value(resources, shared, component_class_id, first)?;
+    for target in &targets[1..] {
+        let candidate = builtin_component_value(resources, shared, component_class_id, target)?;
+        if (candidate - value).abs() > 0.0001 {
+            return Err(format!(
+                "Component variants in {} do not contain consistent values; restore a clean file first",
+                target.file
+            ));
+        }
+    }
+    Ok(value)
+}
+
+fn primary_component_value(
+    resources: &[u8],
+    shared: &[u8],
+    script_path: i64,
+    targets: &[ComponentFloatTarget],
+) -> Result<f32, String> {
     let target = targets
         .first()
-        .ok_or_else(|| "No target offsets configured".to_string())?;
-    read_float(
-        if target.file == RESOURCES_ASSETS {
-            resources
-        } else {
-            shared
-        },
-        target.offset,
-    )
+        .ok_or_else(|| "No Steed targets configured".to_string())?;
+    component_value(resources, shared, script_path, target)
 }
 
 fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
     validate_asset_directory(directory)?;
     let resources = fs::read(directory.join(RESOURCES_ASSETS)).map_err(|err| err.to_string())?;
     let shared = fs::read(directory.join(SHARED_ASSETS)).map_err(|err| err.to_string())?;
+    let global_managers = fs::read(directory.join(GLOBAL_MANAGERS_ASSETS))
+        .map_err(|err| format!("Could not read {GLOBAL_MANAGERS_ASSETS}: {err}"))?;
+    let steed_script_path = find_mono_script_path(&global_managers, "Steed")?;
+    let griffin_skill_script_path =
+        find_mono_script_path(&global_managers, "PushAttackSteedAbility")?;
+    let warhorse_skill_script_path =
+        find_mono_script_path(&global_managers, "BuffUnitsSteedAbility")?;
+    let archer_script_path = find_mono_script_path(&global_managers, "Archer")?;
+    let worker_script_path = find_mono_script_path(&global_managers, "Worker")?;
     Ok(AssetSettings {
-        griffin_run_speed: consistent_value(&resources, &shared, &GRIFFIN_RUN)?,
-        griffin_forest_multiplier: consistent_value(&resources, &shared, &GRIFFIN_FOREST)?,
-        griffin_run_stamina_rate: consistent_value(&resources, &shared, &GRIFFIN_RUN_STAMINA)?,
-        griffin_skill_stamina_cost: consistent_value(&resources, &shared, &GRIFFIN_SKILL_COST)?,
+        griffin_run_speed: consistent_component_value(
+            &resources,
+            &shared,
+            steed_script_path,
+            &GRIFFIN_RUN,
+        )?,
+        griffin_forest_multiplier: consistent_component_value(
+            &resources,
+            &shared,
+            steed_script_path,
+            &GRIFFIN_FOREST,
+        )?,
+        griffin_run_stamina_rate: consistent_component_value(
+            &resources,
+            &shared,
+            steed_script_path,
+            &GRIFFIN_RUN_STAMINA,
+        )?,
+        griffin_skill_stamina_cost: consistent_component_value(
+            &resources,
+            &shared,
+            griffin_skill_script_path,
+            &GRIFFIN_SKILL_COST,
+        )?,
         // Older ktc-edit builds only changed the three resources.assets variants.
         // Read the primary variant so users can open those files and use Apply to
         // synchronize the previously omitted sharedassets0.assets prefab.
-        horse_run_speed: primary_value(&resources, &shared, &HORSE_RUN)?,
-        horse_run_stamina_rate: primary_value(&resources, &shared, &HORSE_RUN_STAMINA)?,
-        warhorse_run_speed: consistent_value(&resources, &shared, &WARHORSE_RUN)?,
-        warhorse_run_stamina_rate: consistent_value(&resources, &shared, &WARHORSE_RUN_STAMINA)?,
-        warhorse_skill_stamina_cost: consistent_value(&resources, &shared, &WARHORSE_SKILL_COST)?,
+        horse_run_speed: primary_component_value(
+            &resources,
+            &shared,
+            steed_script_path,
+            &HORSE_RUN,
+        )?,
+        horse_run_stamina_rate: primary_component_value(
+            &resources,
+            &shared,
+            steed_script_path,
+            &HORSE_RUN_STAMINA,
+        )?,
+        warhorse_run_speed: consistent_component_value(
+            &resources,
+            &shared,
+            steed_script_path,
+            &WARHORSE_RUN,
+        )?,
+        warhorse_run_stamina_rate: consistent_component_value(
+            &resources,
+            &shared,
+            steed_script_path,
+            &WARHORSE_RUN_STAMINA,
+        )?,
+        warhorse_skill_stamina_cost: consistent_component_value(
+            &resources,
+            &shared,
+            warhorse_skill_script_path,
+            &WARHORSE_SKILL_COST,
+        )?,
         warhorse_cooldown: consistent_value(&resources, &shared, &WARHORSE_COOLDOWN)?,
         warhorse_plague_cooldown: consistent_value(&resources, &shared, &WARHORSE_PLAGUE_COOLDOWN)?,
         warhorse_buff_duration: consistent_value(&resources, &shared, &WARHORSE_DURATION)?,
         warhorse_buff_range: consistent_value(&resources, &shared, &WARHORSE_RANGE)?,
-        archer_shoot_prep_time: consistent_value(&resources, &shared, &ARCHER_SHOOT_PREP)?,
-        archer_shoot_cooldown_time: consistent_value(&resources, &shared, &ARCHER_SHOOT_COOLDOWN)?,
-        archer_shoot_cooldown_with_knight_time: consistent_value(
+        archer_shoot_prep_time: consistent_component_value(
             &resources,
             &shared,
+            archer_script_path,
+            &ARCHER_SHOOT_PREP,
+        )?,
+        archer_shoot_cooldown_time: consistent_component_value(
+            &resources,
+            &shared,
+            archer_script_path,
+            &ARCHER_SHOOT_COOLDOWN,
+        )?,
+        archer_shoot_cooldown_with_knight_time: consistent_component_value(
+            &resources,
+            &shared,
+            archer_script_path,
             &ARCHER_KNIGHT_COOLDOWN,
         )?,
-        archer_interval_min: consistent_value(&resources, &shared, &ARCHER_INTERVAL_MIN)?,
-        archer_interval_max: consistent_value(&resources, &shared, &ARCHER_INTERVAL_MAX)?,
-        archer_formation_interval_min: consistent_value(
+        archer_interval_min: consistent_component_value(
             &resources,
             &shared,
+            archer_script_path,
+            &ARCHER_INTERVAL_MIN,
+        )?,
+        archer_interval_max: consistent_component_value(
+            &resources,
+            &shared,
+            archer_script_path,
+            &ARCHER_INTERVAL_MAX,
+        )?,
+        archer_formation_interval_min: consistent_component_value(
+            &resources,
+            &shared,
+            archer_script_path,
             &ARCHER_FORMATION_INTERVAL_MIN,
         )?,
-        archer_formation_interval_max: consistent_value(
+        archer_formation_interval_max: consistent_component_value(
             &resources,
             &shared,
+            archer_script_path,
             &ARCHER_FORMATION_INTERVAL_MAX,
         )?,
-        builder_walk_speed: consistent_value(&resources, &shared, &BUILDER_WALK_SPEED)?,
-        builder_run_speed: consistent_value(&resources, &shared, &BUILDER_RUN_SPEED)?,
-        builder_work_time: consistent_value(&resources, &shared, &BUILDER_WORK_TIME)?,
-        bag_scale: consistent_value(&resources, &shared, &BAG_SCALE)?,
+        builder_walk_speed: consistent_component_value(
+            &resources,
+            &shared,
+            worker_script_path,
+            &BUILDER_WALK_SPEED,
+        )?,
+        builder_run_speed: consistent_component_value(
+            &resources,
+            &shared,
+            worker_script_path,
+            &BUILDER_RUN_SPEED,
+        )?,
+        builder_work_time: consistent_component_value(
+            &resources,
+            &shared,
+            worker_script_path,
+            &BUILDER_WORK_TIME,
+        )?,
+        bag_scale: consistent_builtin_component_value(&resources, &shared, 4, &BAG_SCALE)?,
     })
 }
 
@@ -651,6 +1186,54 @@ fn write_targets(
             target.offset,
             value,
         )?;
+    }
+    Ok(())
+}
+
+fn write_component_targets(
+    resources: &mut [u8],
+    shared: &mut [u8],
+    script_path: i64,
+    targets: &[ComponentFloatTarget],
+    value: f32,
+) -> Result<(), String> {
+    for target in targets {
+        let bytes = if target.file == RESOURCES_ASSETS {
+            &mut *resources
+        } else {
+            &mut *shared
+        };
+        let offset = resolve_component_offset(
+            bytes,
+            script_path,
+            target.game_object,
+            target.relative_offset,
+        )?;
+        write_float(bytes, offset, value)?;
+    }
+    Ok(())
+}
+
+fn write_builtin_component_targets(
+    resources: &mut [u8],
+    shared: &mut [u8],
+    component_class_id: i32,
+    targets: &[ComponentFloatTarget],
+    value: f32,
+) -> Result<(), String> {
+    for target in targets {
+        let bytes = if target.file == RESOURCES_ASSETS {
+            &mut *resources
+        } else {
+            &mut *shared
+        };
+        let offset = resolve_builtin_component_offset(
+            bytes,
+            component_class_id,
+            target.game_object,
+            target.relative_offset,
+        )?;
+        write_float(bytes, offset, value)?;
     }
     Ok(())
 }
@@ -718,58 +1301,76 @@ fn apply_game_assets(
     let shared_path = directory.join(SHARED_ASSETS);
     let mut resources = fs::read(&resources_path).map_err(|err| err.to_string())?;
     let mut shared = fs::read(&shared_path).map_err(|err| err.to_string())?;
+    let global_managers = fs::read(directory.join(GLOBAL_MANAGERS_ASSETS))
+        .map_err(|err| format!("Could not read {GLOBAL_MANAGERS_ASSETS}: {err}"))?;
+    let steed_script_path = find_mono_script_path(&global_managers, "Steed")?;
+    let griffin_skill_script_path =
+        find_mono_script_path(&global_managers, "PushAttackSteedAbility")?;
+    let warhorse_skill_script_path =
+        find_mono_script_path(&global_managers, "BuffUnitsSteedAbility")?;
+    let archer_script_path = find_mono_script_path(&global_managers, "Archer")?;
+    let worker_script_path = find_mono_script_path(&global_managers, "Worker")?;
 
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        steed_script_path,
         &GRIFFIN_RUN,
         settings.griffin_run_speed,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        steed_script_path,
         &GRIFFIN_FOREST,
         settings.griffin_forest_multiplier,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        steed_script_path,
         &GRIFFIN_RUN_STAMINA,
         settings.griffin_run_stamina_rate,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        griffin_skill_script_path,
         &GRIFFIN_SKILL_COST,
         settings.griffin_skill_stamina_cost,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        steed_script_path,
         &HORSE_RUN,
         settings.horse_run_speed,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        steed_script_path,
         &HORSE_RUN_STAMINA,
         settings.horse_run_stamina_rate,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        steed_script_path,
         &WARHORSE_RUN,
         settings.warhorse_run_speed,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        steed_script_path,
         &WARHORSE_RUN_STAMINA,
         settings.warhorse_run_stamina_rate,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        warhorse_skill_script_path,
         &WARHORSE_SKILL_COST,
         settings.warhorse_skill_stamina_cost,
     )?;
@@ -797,67 +1398,83 @@ fn apply_game_assets(
         &WARHORSE_RANGE,
         settings.warhorse_buff_range,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        archer_script_path,
         &ARCHER_SHOOT_PREP,
         settings.archer_shoot_prep_time,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        archer_script_path,
         &ARCHER_SHOOT_COOLDOWN,
         settings.archer_shoot_cooldown_time,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        archer_script_path,
         &ARCHER_KNIGHT_COOLDOWN,
         settings.archer_shoot_cooldown_with_knight_time,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        archer_script_path,
         &ARCHER_INTERVAL_MIN,
         settings.archer_interval_min,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        archer_script_path,
         &ARCHER_INTERVAL_MAX,
         settings.archer_interval_max,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        archer_script_path,
         &ARCHER_FORMATION_INTERVAL_MIN,
         settings.archer_formation_interval_min,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        archer_script_path,
         &ARCHER_FORMATION_INTERVAL_MAX,
         settings.archer_formation_interval_max,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        worker_script_path,
         &BUILDER_WALK_SPEED,
         settings.builder_walk_speed,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        worker_script_path,
         &BUILDER_RUN_SPEED,
         settings.builder_run_speed,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        worker_script_path,
         &BUILDER_WORK_TIME,
         settings.builder_work_time,
     )?;
-    write_targets(&mut resources, &mut shared, &BAG_SCALE, settings.bag_scale)?;
+    write_builtin_component_targets(
+        &mut resources,
+        &mut shared,
+        4,
+        &BAG_SCALE,
+        settings.bag_scale,
+    )?;
 
     let resources_backup = create_backup(&resources_path)?;
     let shared_backup = create_backup(&shared_path)?;
@@ -869,9 +1486,18 @@ fn apply_game_assets(
 
     let written_resources = fs::read(&resources_path).map_err(|err| err.to_string())?;
     let written_shared = fs::read(&shared_path).map_err(|err| err.to_string())?;
-    let verified_horse_run = consistent_value(&written_resources, &written_shared, &HORSE_RUN)?;
-    let verified_horse_stamina =
-        consistent_value(&written_resources, &written_shared, &HORSE_RUN_STAMINA)?;
+    let verified_horse_run = consistent_component_value(
+        &written_resources,
+        &written_shared,
+        steed_script_path,
+        &HORSE_RUN,
+    )?;
+    let verified_horse_stamina = consistent_component_value(
+        &written_resources,
+        &written_shared,
+        steed_script_path,
+        &HORSE_RUN_STAMINA,
+    )?;
     if (verified_horse_run - settings.horse_run_speed).abs() > 0.0001
         || (verified_horse_stamina - settings.horse_run_stamina_rate).abs() > 0.0001
     {
@@ -1031,15 +1657,91 @@ mod tests {
     }
 
     #[test]
-    fn regular_horse_targets_include_default_shared_asset_prefab() {
+    fn regular_horse_targets_are_relative_and_include_default_prefab() {
         assert_eq!(HORSE_RUN.len(), 4);
         assert_eq!(HORSE_RUN_STAMINA.len(), 4);
-        assert!(HORSE_RUN
-            .iter()
-            .any(|target| { target.file == SHARED_ASSETS && target.offset == 59_686_372 }));
+        assert!(HORSE_RUN.iter().any(|target| target.file == SHARED_ASSETS
+            && target.game_object == "Horse Regular"
+            && target.relative_offset == 196));
         assert!(HORSE_RUN_STAMINA
             .iter()
-            .any(|target| { target.file == SHARED_ASSETS && target.offset == 59_686_384 }));
+            .any(|target| target.file == SHARED_ASSETS
+                && target.game_object == "Horse Regular"
+                && target.relative_offset == 208));
+    }
+
+    #[test]
+    fn resolves_component_fields_from_installed_assets_when_available() {
+        let directory = default_game_data_directory();
+        let Ok(resources) = fs::read(directory.join(RESOURCES_ASSETS)) else {
+            return;
+        };
+        let Ok(shared) = fs::read(directory.join(SHARED_ASSETS)) else {
+            return;
+        };
+        let Ok(global_managers) = fs::read(directory.join(GLOBAL_MANAGERS_ASSETS)) else {
+            return;
+        };
+        let script = find_mono_script_path(&global_managers, "Steed").expect("Steed script");
+        for target in GRIFFIN_RUN
+            .iter()
+            .chain(HORSE_RUN.iter())
+            .chain(WARHORSE_RUN.iter())
+        {
+            let bytes = if target.file == RESOURCES_ASSETS {
+                &resources
+            } else {
+                &shared
+            };
+            let offset =
+                resolve_component_offset(bytes, script, target.game_object, target.relative_offset)
+                    .expect("dynamic Steed field");
+            assert!(read_float(bytes, offset).expect("Steed float").is_finite());
+        }
+        for (class_name, targets) in [
+            ("PushAttackSteedAbility", GRIFFIN_SKILL_COST.as_slice()),
+            ("BuffUnitsSteedAbility", WARHORSE_SKILL_COST.as_slice()),
+            ("Archer", ARCHER_SHOOT_PREP.as_slice()),
+            ("Worker", BUILDER_WALK_SPEED.as_slice()),
+        ] {
+            let script =
+                find_mono_script_path(&global_managers, class_name).expect("ability script");
+            for target in targets {
+                let bytes = if target.file == RESOURCES_ASSETS {
+                    &resources
+                } else {
+                    &shared
+                };
+                let offset = resolve_component_offset(
+                    bytes,
+                    script,
+                    target.game_object,
+                    target.relative_offset,
+                )
+                .expect("dynamic ability field");
+                assert!(read_float(bytes, offset)
+                    .expect("component float")
+                    .is_finite());
+            }
+        }
+        for target in &BAG_SCALE {
+            let bytes = if target.file == RESOURCES_ASSETS {
+                &resources
+            } else {
+                &shared
+            };
+            let offset = resolve_builtin_component_offset(
+                bytes,
+                4,
+                target.game_object,
+                target.relative_offset,
+            )
+            .expect("dynamic Transform field");
+            assert!(read_float(bytes, offset)
+                .expect("Transform float")
+                .is_finite());
+        }
+        read_asset_settings(&directory).expect("installed asset settings should load");
     }
 }
 
