@@ -29,10 +29,12 @@
     setTreeMark,
     setDeityStatus,
     unlockAllDeities,
+    setCatapultOilBarrels,
     type IslandOverview,
     type WallInfo,
     type TowerInfo,
     type TowerType,
+    type CatapultInfo,
     type TreeInfo,
     type DeityInfo
   } from "$lib/saveEditActions";
@@ -138,6 +140,23 @@
 
   let islandOverview = $derived(
     data ? getIslandOverview(data, { campaignIndex: selectedCampaign, islandIndex: selectedIsland }) : null
+  );
+
+  let leftCatapult = $derived(
+    islandOverview?.catapults.find(c => c.side === -1) ?? null
+  );
+  let rightCatapult = $derived(
+    islandOverview?.catapults.find(c => c.side === 1) ?? null
+  );
+
+  let customLeftBarrels = $state<number | null>(null);
+  let customRightBarrels = $state<number | null>(null);
+
+  let leftCatapultInput = $derived(
+    customLeftBarrels !== null ? customLeftBarrels : (leftCatapult?.oilBarrels ?? 30)
+  );
+  let rightCatapultInput = $derived(
+    customRightBarrels !== null ? customRightBarrels : (rightCatapult?.oilBarrels ?? 30)
   );
 
   let knightStats = $derived(
@@ -979,6 +998,38 @@
       data = updated;
       backupPath = null;
       showSuccess(t.status.formationDeployed);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      showError(message);
+    }
+  }
+
+  function handleSetCatapultBarrels(side: -1 | 1) {
+    resetStatus();
+
+    try {
+      const current = requireData();
+      const barrels = side === -1 ? leftCatapultInput : rightCatapultInput;
+      console.info("Catapult barrels update requested", {
+        campaign: selectedCampaign,
+        island: selectedIsland,
+        side,
+        barrels,
+      });
+      const updated = setCatapultOilBarrels(current, {
+        campaignIndex: selectedCampaign,
+        islandIndex: selectedIsland,
+        side,
+        oilBarrels: barrels,
+      });
+      data = updated;
+      backupPath = null;
+      if (side === -1) {
+        customLeftBarrels = null;
+      } else {
+        customRightBarrels = null;
+      }
+      showSuccess(t.status.catapultOilUpdated);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       showError(message);
@@ -2501,6 +2552,75 @@
                   />
                 </label>
                 <button type="button" onclick={handleFormation}>{t.combat.deploy}</button>
+              </div>
+            </div>
+
+            <div class="card-section">
+              <div class="card-section-header">
+                <h4>{t.combat.catapultAmmo}</h4>
+              </div>
+              <div class="form-row wrap" style="align-items: flex-end; gap: 1.5rem;">
+                <!-- Left Catapult -->
+                <div style="flex: 1; min-width: 250px; background: rgba(255,255,255,0.02); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--color-border);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 600; color: #64b5f6;">{t.combat.catapultLeft}</span>
+                    {#if leftCatapult}
+                      <span class="coord-badge" style="font-size: 0.8rem;">X = {leftCatapult.x}</span>
+                    {:else}
+                      <span style="font-size: 0.8rem; color: var(--color-text-secondary);">(Not built)</span>
+                    {/if}
+                  </div>
+                  {#if leftCatapult}
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                      <label style="flex: 1; margin: 0;">
+                        {t.combat.barrelsCount}
+                        <input
+                          type="number"
+                          min="0"
+                          max="999"
+                          value={leftCatapultInput}
+                          oninput={(event) => (customLeftBarrels = Math.max(0, Number((event.currentTarget as HTMLInputElement).value)))}
+                        />
+                      </label>
+                      <button type="button" onclick={() => handleSetCatapultBarrels(-1)} style="margin-top: 1.25rem;">
+                        {t.combat.catapultApply}
+                      </button>
+                    </div>
+                  {:else}
+                    <p class="muted" style="margin: 0; font-size: 0.85rem;">{t.combat.noCatapultOnIsland}</p>
+                  {/if}
+                </div>
+
+                <!-- Right Catapult -->
+                <div style="flex: 1; min-width: 250px; background: rgba(255,255,255,0.02); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--color-border);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 600; color: #ffb74d;">{t.combat.catapultRight}</span>
+                    {#if rightCatapult}
+                      <span class="coord-badge" style="font-size: 0.8rem;">X = {rightCatapult.x}</span>
+                    {:else}
+                      <span style="font-size: 0.8rem; color: var(--color-text-secondary);">(Not built)</span>
+                    {/if}
+                  </div>
+                  {#if rightCatapult}
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                      <label style="flex: 1; margin: 0;">
+                        {t.combat.barrelsCount}
+                        <input
+                          type="number"
+                          min="0"
+                          max="999"
+                          value={rightCatapultInput}
+                          oninput={(event) => (customRightBarrels = Math.max(0, Number((event.currentTarget as HTMLInputElement).value)))}
+                        />
+                      </label>
+                      <button type="button" onclick={() => handleSetCatapultBarrels(1)} style="margin-top: 1.25rem;">
+                        {t.combat.catapultApply}
+                      </button>
+                    </div>
+                  {:else}
+                    <p class="muted" style="margin: 0; font-size: 0.85rem;">{t.combat.noCatapultOnIsland}</p>
+                  {/if}
+                </div>
               </div>
             </div>
           </section>

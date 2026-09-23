@@ -121,6 +121,12 @@ export interface Translations {
     battleFormation: string;
     deploy: string;
     positionX: string;
+    catapultAmmo: string;
+    catapultLeft: string;
+    catapultRight: string;
+    catapultApply: string;
+    barrelsCount: string;
+    noCatapultOnIsland: string;
   };
   construction: {
     title: string;
@@ -173,6 +179,7 @@ export interface Translations {
     treeMarkUpdated: string;
     deityUpdated: string;
     deitiesAllUpdated: string;
+    catapultOilUpdated: string;
   };
 }
 
@@ -298,6 +305,12 @@ const translations: Record<Language, Translations> = {
       battleFormation: 'Battle formation',
       deploy: 'Deploy',
       positionX: 'Position X',
+      catapultAmmo: 'Catapult Oil Barrels',
+      catapultLeft: 'Left Catapult',
+      catapultRight: 'Right Catapult',
+      catapultApply: 'Set Barrels',
+      barrelsCount: 'Oil Barrels',
+      noCatapultOnIsland: 'No Catapult found on this side of the island',
     },
     construction: {
       title: 'Construction',
@@ -350,6 +363,7 @@ const translations: Record<Language, Translations> = {
       treeMarkUpdated: 'Tree marking updated',
       deityUpdated: 'Shrine status updated',
       deitiesAllUpdated: 'All shrines updated successfully',
+      catapultOilUpdated: 'Catapult oil barrels updated successfully',
     },
   },
 };
