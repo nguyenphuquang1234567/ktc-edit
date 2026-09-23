@@ -134,6 +134,19 @@ export interface UpgradeCastleOptions extends CampaignIslandOptions {
   targetLevel: number;
 }
 
+export interface CatapultInfo {
+  id: string;
+  side: -1 | 1;
+  sideLabel: "left" | "right";
+  x: number;
+  oilBarrels: number;
+}
+
+export interface SetCatapultOilBarrelsOptions extends CampaignIslandOptions {
+  side: -1 | 1;
+  oilBarrels: number;
+}
+
 export interface IslandOverview {
   castleX: number;
   castleLevel: number;
@@ -141,6 +154,7 @@ export interface IslandOverview {
   players: PlayerInfo[];
   walls: WallInfo[];
   towers: TowerInfo[];
+  catapults: CatapultInfo[];
   trees: TreeInfo[];
   specialPoints: SpecialPointInfo[];
   deities: DeityInfo[];
@@ -1960,6 +1974,34 @@ export function getIslandOverview(doc: JSONValue | null, options: CampaignIsland
     }
     towers.sort((a, b) => a.x - b.x);
 
+    // Catapults
+    const catapults: CatapultInfo[] = [];
+    for (const obj of objects) {
+      const name = String(obj?.name ?? "");
+      if (name.includes("Catapult")) {
+        const comps = Array.isArray(obj?.componentData2) ? obj.componentData2 : [];
+        for (const comp of comps) {
+          if (comp?.name === "Catapult" && typeof comp?.data === "string") {
+            try {
+              const cData = JSON.parse(comp.data);
+              const sideVal = cData.side === 1 ? 1 : -1;
+              const pos = getLocalPosition(obj);
+              catapults.push({
+                id: String(obj.uniqueID ?? ""),
+                side: sideVal,
+                sideLabel: sideVal === -1 ? "left" : "right",
+                x: Math.round(Number(pos.x ?? 0) * 10) / 10,
+                oilBarrels: typeof cData.oilBarrels === "number" ? cData.oilBarrels : 0,
+              });
+            } catch {
+              // ignore malformed data
+            }
+          }
+        }
+      }
+    }
+    catapults.sort((a, b) => a.x - b.x);
+
     const deities = getCampaignDeities(doc, options.campaignIndex);
 
     return {
@@ -1969,6 +2011,7 @@ export function getIslandOverview(doc: JSONValue | null, options: CampaignIsland
       players,
       walls,
       towers,
+      catapults,
       trees,
       specialPoints,
       deities,
@@ -2206,3 +2249,39 @@ export function unlockAllDeities(doc: JSONValue, options: UnlockAllDeitiesOption
   return root;
 }
 
+export function setCatapultOilBarrels(doc: JSONValue, options: SetCatapultOilBarrelsOptions): JSONValue {
+  const root = cloneJson(doc);
+  const { objects, islandObject } = getIslandContext(root, options);
+  const { side, oilBarrels } = options;
+
+  let updatedCount = 0;
+  for (const obj of objects) {
+    const name = String(obj?.name ?? "");
+    if (name.includes("Catapult")) {
+      const comps = Array.isArray(obj?.componentData2) ? obj.componentData2 : [];
+      for (const comp of comps) {
+        if (comp?.name === "Catapult" && typeof comp?.data === "string") {
+          try {
+            const cData = JSON.parse(comp.data);
+            const catapultSide = cData.side === 1 ? 1 : -1;
+            if (catapultSide === side) {
+              cData.oilBarrels = Math.max(0, oilBarrels);
+              comp.data = JSON.stringify(cData);
+              updatedCount++;
+            }
+          } catch {
+            // ignore malformed data
+          }
+        }
+      }
+    }
+  }
+
+  if (updatedCount === 0) {
+    const sideName = side === -1 ? "Left" : "Right";
+    throw new Error(`No Catapult found on the ${sideName} side of this island`);
+  }
+
+  islandObject.objects = objects;
+  return root;
+}
