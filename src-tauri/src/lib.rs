@@ -46,6 +46,10 @@ const GRIFFIN_RUN_STAMINA: [ComponentFloatTarget; 5] =
     component_targets(RESOURCES_ASSETS, GRIFFIN_NAMES, 208);
 const GRIFFIN_SKILL_COST: [ComponentFloatTarget; 5] =
     component_targets(RESOURCES_ASSETS, GRIFFIN_NAMES, 32);
+const GRIFFIN_PUSH_WIDTH: [ComponentFloatTarget; 5] =
+    component_targets(RESOURCES_ASSETS, GRIFFIN_NAMES, 40);
+const GRIFFIN_PUSH_HEIGHT: [ComponentFloatTarget; 5] =
+    component_targets(RESOURCES_ASSETS, GRIFFIN_NAMES, 44);
 const LIZARD_NAMES: [&str; 1] = ["Lizard"];
 const LIZARD_RUN: [ComponentFloatTarget; 1] =
     component_targets(RESOURCES_ASSETS, LIZARD_NAMES, 196);
@@ -242,6 +246,8 @@ struct AssetSettings {
     griffin_forest_multiplier: f32,
     griffin_run_stamina_rate: f32,
     griffin_skill_stamina_cost: f32,
+    griffin_push_width: f32,
+    griffin_push_height: f32,
     lizard_run_speed: f32,
     lizard_run_stamina_rate: f32,
     lizard_skill_stamina_cost: f32,
@@ -1027,6 +1033,7 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
     let steed_script_path = find_mono_script_path(&global_managers, "Steed")?;
     let griffin_skill_script_path =
         find_mono_script_path(&global_managers, "PushAttackSteedAbility")?;
+    let pushable_pusher_script_path = find_mono_script_path(&global_managers, "PushablePusher")?;
     let lizard_skill_script_path = find_mono_script_path(&global_managers, "SpitSteedAbility")?;
     let warhorse_skill_script_path =
         find_mono_script_path(&global_managers, "BuffUnitsSteedAbility")?;
@@ -1056,6 +1063,18 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
             &shared,
             griffin_skill_script_path,
             &GRIFFIN_SKILL_COST,
+        )?,
+        griffin_push_width: consistent_component_value(
+            &resources,
+            &shared,
+            pushable_pusher_script_path,
+            &GRIFFIN_PUSH_WIDTH,
+        )?,
+        griffin_push_height: consistent_component_value(
+            &resources,
+            &shared,
+            pushable_pusher_script_path,
+            &GRIFFIN_PUSH_HEIGHT,
         )?,
         lizard_run_speed: consistent_component_value(
             &resources,
@@ -1273,6 +1292,8 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
         settings.griffin_forest_multiplier,
         settings.griffin_run_stamina_rate,
         settings.griffin_skill_stamina_cost,
+        settings.griffin_push_width,
+        settings.griffin_push_height,
         settings.lizard_run_speed,
         settings.lizard_run_stamina_rate,
         settings.lizard_skill_stamina_cost,
@@ -1338,6 +1359,7 @@ fn apply_game_assets(
     let steed_script_path = find_mono_script_path(&global_managers, "Steed")?;
     let griffin_skill_script_path =
         find_mono_script_path(&global_managers, "PushAttackSteedAbility")?;
+    let pushable_pusher_script_path = find_mono_script_path(&global_managers, "PushablePusher")?;
     let lizard_skill_script_path = find_mono_script_path(&global_managers, "SpitSteedAbility")?;
     let warhorse_skill_script_path =
         find_mono_script_path(&global_managers, "BuffUnitsSteedAbility")?;
@@ -1371,6 +1393,20 @@ fn apply_game_assets(
         griffin_skill_script_path,
         &GRIFFIN_SKILL_COST,
         settings.griffin_skill_stamina_cost,
+    )?;
+    write_component_targets(
+        &mut resources,
+        &mut shared,
+        pushable_pusher_script_path,
+        &GRIFFIN_PUSH_WIDTH,
+        settings.griffin_push_width,
+    )?;
+    write_component_targets(
+        &mut resources,
+        &mut shared,
+        pushable_pusher_script_path,
+        &GRIFFIN_PUSH_HEIGHT,
+        settings.griffin_push_height,
     )?;
     write_component_targets(
         &mut resources,
@@ -1755,6 +1791,8 @@ mod tests {
         }
         for (class_name, targets) in [
             ("PushAttackSteedAbility", GRIFFIN_SKILL_COST.as_slice()),
+            ("PushablePusher", GRIFFIN_PUSH_WIDTH.as_slice()),
+            ("PushablePusher", GRIFFIN_PUSH_HEIGHT.as_slice()),
             ("SpitSteedAbility", LIZARD_SKILL_COST.as_slice()),
             ("BuffUnitsSteedAbility", WARHORSE_SKILL_COST.as_slice()),
             ("Archer", ARCHER_SHOOT_PREP.as_slice()),

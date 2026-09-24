@@ -50,6 +50,8 @@
     griffinForestMultiplier: number;
     griffinRunStaminaRate: number;
     griffinSkillStaminaCost: number;
+    griffinPushWidth: number;
+    griffinPushHeight: number;
     lizardRunSpeed: number;
     lizardRunStaminaRate: number;
     lizardSkillStaminaCost: number;
@@ -1422,6 +1424,8 @@
               <label>Forest multiplier<input type="number" step="0.1" value={assetSettings.griffinForestMultiplier} oninput={(e) => updateAssetNumber('griffinForestMultiplier', e)} /></label>
               <label>Run stamina rate<input type="number" step="0.01" value={assetSettings.griffinRunStaminaRate} oninput={(e) => updateAssetNumber('griffinRunStaminaRate', e)} /></label>
               <label>Skill stamina cost<input type="number" step="0.01" value={assetSettings.griffinSkillStaminaCost} oninput={(e) => updateAssetNumber('griffinSkillStaminaCost', e)} /></label>
+              <label>Push range width<input type="number" min="0" step="0.1" value={assetSettings.griffinPushWidth} oninput={(e) => updateAssetNumber('griffinPushWidth', e)} /></label>
+              <label>Push range height<input type="number" min="0" step="0.1" value={assetSettings.griffinPushHeight} oninput={(e) => updateAssetNumber('griffinPushHeight', e)} /></label>
             </section>
 
             <section class="card asset-card">
