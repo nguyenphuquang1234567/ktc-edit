@@ -50,6 +50,9 @@
     griffinForestMultiplier: number;
     griffinRunStaminaRate: number;
     griffinSkillStaminaCost: number;
+    lizardRunSpeed: number;
+    lizardRunStaminaRate: number;
+    lizardSkillStaminaCost: number;
     horseRunSpeed: number;
     horseRunStaminaRate: number;
     warhorseRunSpeed: number;
@@ -1425,6 +1428,13 @@
               <h2>Regular Horse</h2>
               <label>Run speed<input type="number" step="0.1" value={assetSettings.horseRunSpeed} oninput={(e) => updateAssetNumber('horseRunSpeed', e)} /></label>
               <label>Run stamina rate<input type="number" step="0.01" value={assetSettings.horseRunStaminaRate} oninput={(e) => updateAssetNumber('horseRunStaminaRate', e)} /></label>
+            </section>
+
+            <section class="card asset-card">
+              <h2>Lizard</h2>
+              <label>Run speed<input type="number" step="0.1" value={assetSettings.lizardRunSpeed} oninput={(e) => updateAssetNumber('lizardRunSpeed', e)} /></label>
+              <label>Run stamina rate<input type="number" step="0.01" value={assetSettings.lizardRunStaminaRate} oninput={(e) => updateAssetNumber('lizardRunStaminaRate', e)} /></label>
+              <label>Skill stamina cost<input type="number" min="0" step="0.01" value={assetSettings.lizardSkillStaminaCost} oninput={(e) => updateAssetNumber('lizardSkillStaminaCost', e)} /></label>
             </section>
 
             <section class="card asset-card">

@@ -46,6 +46,13 @@ const GRIFFIN_RUN_STAMINA: [ComponentFloatTarget; 5] =
     component_targets(RESOURCES_ASSETS, GRIFFIN_NAMES, 208);
 const GRIFFIN_SKILL_COST: [ComponentFloatTarget; 5] =
     component_targets(RESOURCES_ASSETS, GRIFFIN_NAMES, 32);
+const LIZARD_NAMES: [&str; 1] = ["Lizard"];
+const LIZARD_RUN: [ComponentFloatTarget; 1] =
+    component_targets(RESOURCES_ASSETS, LIZARD_NAMES, 196);
+const LIZARD_RUN_STAMINA: [ComponentFloatTarget; 1] =
+    component_targets(RESOURCES_ASSETS, LIZARD_NAMES, 208);
+const LIZARD_SKILL_COST: [ComponentFloatTarget; 1] =
+    component_targets(RESOURCES_ASSETS, LIZARD_NAMES, 32);
 const HORSE_RUN: [ComponentFloatTarget; 4] = [
     ComponentFloatTarget {
         file: RESOURCES_ASSETS,
@@ -235,6 +242,9 @@ struct AssetSettings {
     griffin_forest_multiplier: f32,
     griffin_run_stamina_rate: f32,
     griffin_skill_stamina_cost: f32,
+    lizard_run_speed: f32,
+    lizard_run_stamina_rate: f32,
+    lizard_skill_stamina_cost: f32,
     horse_run_speed: f32,
     horse_run_stamina_rate: f32,
     warhorse_run_speed: f32,
@@ -1017,6 +1027,7 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
     let steed_script_path = find_mono_script_path(&global_managers, "Steed")?;
     let griffin_skill_script_path =
         find_mono_script_path(&global_managers, "PushAttackSteedAbility")?;
+    let lizard_skill_script_path = find_mono_script_path(&global_managers, "SpitSteedAbility")?;
     let warhorse_skill_script_path =
         find_mono_script_path(&global_managers, "BuffUnitsSteedAbility")?;
     let archer_script_path = find_mono_script_path(&global_managers, "Archer")?;
@@ -1045,6 +1056,24 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
             &shared,
             griffin_skill_script_path,
             &GRIFFIN_SKILL_COST,
+        )?,
+        lizard_run_speed: consistent_component_value(
+            &resources,
+            &shared,
+            steed_script_path,
+            &LIZARD_RUN,
+        )?,
+        lizard_run_stamina_rate: consistent_component_value(
+            &resources,
+            &shared,
+            steed_script_path,
+            &LIZARD_RUN_STAMINA,
+        )?,
+        lizard_skill_stamina_cost: consistent_component_value(
+            &resources,
+            &shared,
+            lizard_skill_script_path,
+            &LIZARD_SKILL_COST,
         )?,
         // Older ktc-edit builds only changed the three resources.assets variants.
         // Read the primary variant so users can open those files and use Apply to
@@ -1244,6 +1273,9 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
         settings.griffin_forest_multiplier,
         settings.griffin_run_stamina_rate,
         settings.griffin_skill_stamina_cost,
+        settings.lizard_run_speed,
+        settings.lizard_run_stamina_rate,
+        settings.lizard_skill_stamina_cost,
         settings.horse_run_speed,
         settings.horse_run_stamina_rate,
         settings.warhorse_run_speed,
@@ -1306,6 +1338,7 @@ fn apply_game_assets(
     let steed_script_path = find_mono_script_path(&global_managers, "Steed")?;
     let griffin_skill_script_path =
         find_mono_script_path(&global_managers, "PushAttackSteedAbility")?;
+    let lizard_skill_script_path = find_mono_script_path(&global_managers, "SpitSteedAbility")?;
     let warhorse_skill_script_path =
         find_mono_script_path(&global_managers, "BuffUnitsSteedAbility")?;
     let archer_script_path = find_mono_script_path(&global_managers, "Archer")?;
@@ -1338,6 +1371,27 @@ fn apply_game_assets(
         griffin_skill_script_path,
         &GRIFFIN_SKILL_COST,
         settings.griffin_skill_stamina_cost,
+    )?;
+    write_component_targets(
+        &mut resources,
+        &mut shared,
+        steed_script_path,
+        &LIZARD_RUN,
+        settings.lizard_run_speed,
+    )?;
+    write_component_targets(
+        &mut resources,
+        &mut shared,
+        steed_script_path,
+        &LIZARD_RUN_STAMINA,
+        settings.lizard_run_stamina_rate,
+    )?;
+    write_component_targets(
+        &mut resources,
+        &mut shared,
+        lizard_skill_script_path,
+        &LIZARD_SKILL_COST,
+        settings.lizard_skill_stamina_cost,
     )?;
     write_component_targets(
         &mut resources,
@@ -1685,6 +1739,7 @@ mod tests {
         let script = find_mono_script_path(&global_managers, "Steed").expect("Steed script");
         for target in GRIFFIN_RUN
             .iter()
+            .chain(LIZARD_RUN.iter())
             .chain(HORSE_RUN.iter())
             .chain(WARHORSE_RUN.iter())
         {
@@ -1700,6 +1755,7 @@ mod tests {
         }
         for (class_name, targets) in [
             ("PushAttackSteedAbility", GRIFFIN_SKILL_COST.as_slice()),
+            ("SpitSteedAbility", LIZARD_SKILL_COST.as_slice()),
             ("BuffUnitsSteedAbility", WARHORSE_SKILL_COST.as_slice()),
             ("Archer", ARCHER_SHOOT_PREP.as_slice()),
             ("Worker", BUILDER_WALK_SPEED.as_slice()),
