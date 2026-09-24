@@ -130,6 +130,10 @@ export interface PlayerInfo {
   y: number;
 }
 
+export interface TeleportPlayerOptions extends SelectionOptions {
+  x: number;
+}
+
 export interface UpgradeCastleOptions extends CampaignIslandOptions {
   targetLevel: number;
 }
@@ -2280,6 +2284,37 @@ export function setCatapultOilBarrels(doc: JSONValue, options: SetCatapultOilBar
   if (updatedCount === 0) {
     const sideName = side === -1 ? "Left" : "Right";
     throw new Error(`No Catapult found on the ${sideName} side of this island`);
+  }
+
+  islandObject.objects = objects;
+  return root;
+}
+
+export function teleportPlayer(doc: JSONValue, options: TeleportPlayerOptions): JSONValue {
+  const root = cloneJson(doc);
+  const { objects, islandObject } = getIslandContext(root, options);
+  const { playerIndex, x } = options;
+
+  let player = findPlayerObject(objects, playerIndex);
+  if (!player) {
+    for (const obj of objects) {
+      const prefab = String(obj?.prefabPath ?? "");
+      const name = String(obj?.name ?? "");
+      if (prefab.includes("Characters/Player") && (name === `Player ${playerIndex + 1}` || name.includes(`Player`))) {
+        player = obj;
+        break;
+      }
+    }
+  }
+
+  if (!player) {
+    throw new Error(`Player ${playerIndex + 1} not found on this island`);
+  }
+
+  if (!player.localPosition || typeof player.localPosition !== "object") {
+    player.localPosition = { x, y: 0.88, z: 1.0 };
+  } else {
+    player.localPosition.x = x;
   }
 
   islandObject.objects = objects;

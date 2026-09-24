@@ -115,6 +115,10 @@ export interface Translations {
     archers: string;
     workers: string;
     formationOffset: string;
+    teleportTitle: string;
+    teleportX: string;
+    teleportButton: string;
+    teleportToCastle: string;
   };
   combat: {
     title: string;
@@ -180,6 +184,7 @@ export interface Translations {
     deityUpdated: string;
     deitiesAllUpdated: string;
     catapultOilUpdated: string;
+    playerTeleported: string;
   };
 }
 
@@ -299,6 +304,10 @@ const translations: Record<Language, Translations> = {
       archers: 'Archers',
       workers: 'Workers',
       formationOffset: 'Formation offset',
+      teleportTitle: 'Teleport Ruler (Change Position)',
+      teleportX: 'Target Position X',
+      teleportButton: '⚡ Teleport',
+      teleportToCastle: 'Center / Castle',
     },
     combat: {
       title: 'Combat',
@@ -364,6 +373,7 @@ const translations: Record<Language, Translations> = {
       deityUpdated: 'Shrine status updated',
       deitiesAllUpdated: 'All shrines updated successfully',
       catapultOilUpdated: 'Catapult oil barrels updated successfully',
+      playerTeleported: 'Player teleported successfully',
     },
   },
 };
