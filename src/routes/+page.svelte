@@ -30,6 +30,7 @@
     setDeityStatus,
     unlockAllDeities,
     setCatapultOilBarrels,
+    teleportPlayer,
     type IslandOverview,
     type WallInfo,
     type TowerInfo,
@@ -127,6 +128,8 @@
   let formationPosition = $state(0);
   let formationArchers = $state(5);
   let formationPikemen = $state(5);
+  let teleportPlayerIndex = $state(0);
+  let teleportTargetX = $state(0);
   let pimpCoins = $state(69);
   let pimpSpawnCount = $state(10);
   let treesPlayerIndex = $state(0);
@@ -968,6 +971,34 @@
       data = updated;
       backupPath = null;
       showSuccess(t.status.enemiesRemoved);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      showError(message);
+    }
+  }
+
+  function handleTeleportPlayer(targetX?: number) {
+    resetStatus();
+
+    try {
+      const current = requireData();
+      const x = targetX !== undefined ? targetX : teleportTargetX;
+      console.info("Player teleport requested", {
+        campaign: selectedCampaign,
+        island: selectedIsland,
+        player: teleportPlayerIndex,
+        x,
+      });
+      const updated = teleportPlayer(current, {
+        campaignIndex: selectedCampaign,
+        islandIndex: selectedIsland,
+        playerIndex: teleportPlayerIndex,
+        x,
+      });
+      data = updated;
+      backupPath = null;
+      teleportTargetX = x;
+      showSuccess(t.status.playerTeleported);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       showError(message);
@@ -2500,6 +2531,54 @@
                   />
                 </label>
                 <button type="button" onclick={handleMarkTrees}>{t.navigation.mark}</button>
+              </div>
+            </div>
+
+            <div class="card-section">
+              <div class="card-section-header">
+                <h4>{t.navigation.teleportTitle}</h4>
+              </div>
+              <div class="form-row wrap" style="align-items: flex-end; gap: 1rem;">
+                <label>
+                  {t.resources.player}
+                  <select
+                    value={teleportPlayerIndex}
+                    onchange={(event) => (teleportPlayerIndex = Number((event.currentTarget as HTMLSelectElement).value))}
+                  >
+                    <option value={0}>{t.resources.player} 1</option>
+                    <option value={1}>{t.resources.player} 2</option>
+                  </select>
+                </label>
+
+                {#if islandOverview?.players}
+                  {@const curPlayer = islandOverview.players.find(p => p.name === `Player ${teleportPlayerIndex + 1}`)}
+                  {#if curPlayer}
+                    <div style="display: flex; flex-direction: column; gap: 0.25rem; justify-content: center; padding-bottom: 0.25rem;">
+                      <span style="font-size: 0.8rem; color: var(--color-text-secondary);">{t.resources.current}</span>
+                      <span class="coord-badge" style="color: #64b5f6; font-size: 0.95rem;">X = {curPlayer.x}</span>
+                    </div>
+                  {/if}
+                {/if}
+
+                <label>
+                  {t.navigation.teleportX}
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={teleportTargetX}
+                    oninput={(event) => (teleportTargetX = Number((event.currentTarget as HTMLInputElement).value))}
+                  />
+                </label>
+
+                <button type="button" onclick={() => handleTeleportPlayer()}>
+                  {t.navigation.teleportButton}
+                </button>
+
+                {#if islandOverview}
+                  <button type="button" onclick={() => handleTeleportPlayer(islandOverview.castleX)} style="background: rgba(255,255,255,0.06);">
+                    🏰 {t.navigation.teleportToCastle} ({islandOverview.castleX})
+                  </button>
+                {/if}
               </div>
             </div>
           </section>
