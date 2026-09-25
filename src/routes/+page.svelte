@@ -74,6 +74,8 @@
     builderWalkSpeed: number;
     builderRunSpeed: number;
     builderWorkTime: number;
+    wall5StandardHitPoints: number;
+    wall5NorselandsHitPoints: number;
     bagScale: number;
   }
 
@@ -1470,6 +1472,13 @@
               <label>Run speed<input type="number" min="0" step="0.05" value={assetSettings.builderRunSpeed} oninput={(e) => updateAssetNumber('builderRunSpeed', e)} /></label>
               <label>Work time (seconds)<input type="number" min="0" step="0.05" value={assetSettings.builderWorkTime} oninput={(e) => updateAssetNumber('builderWorkTime', e)} /></label>
               <p class="muted">Applied to regular and Norse Lands builders. Lower work time means faster building and chopping.</p>
+            </section>
+
+            <section class="card asset-card">
+              <h2>Iron Wall (Wall5)</h2>
+              <label>Base HP — regular, Greece, Bamboo<input type="number" min="1" max="1000000" step="1" value={assetSettings.wall5StandardHitPoints} oninput={(e) => updateAssetNumber('wall5StandardHitPoints', e)} /></label>
+              <label>Base HP — Norse Lands<input type="number" min="1" max="1000000" step="1" value={assetSettings.wall5NorselandsHitPoints} oninput={(e) => updateAssetNumber('wall5NorselandsHitPoints', e)} /></label>
+              <p class="muted">Applies to normal and horn variants. Wall Statue multipliers are unchanged; existing walls keep their saved current HP.</p>
             </section>
 
             <section class="card asset-card">

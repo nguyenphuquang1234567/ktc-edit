@@ -141,6 +141,19 @@ const BUILDER_RUN_SPEED: [ComponentFloatTarget; 2] =
     component_targets(RESOURCES_ASSETS, BUILDER_NAMES, 44);
 const BUILDER_WORK_TIME: [ComponentFloatTarget; 2] =
     component_targets(RESOURCES_ASSETS, BUILDER_NAMES, 48);
+const WALL5_STANDARD_NAMES: [&str; 6] = [
+    "Wall5",
+    "Wall5_horn",
+    "Wall5_greece",
+    "Wall5_horn_greece",
+    "Wall5_Bamboo",
+    "Wall5_Horn_Bamboo",
+];
+const WALL5_NORSELANDS_NAMES: [&str; 2] = ["Wall5_norselands", "Wall5_horn_norselands"];
+const WALL5_STANDARD_HP: [ComponentFloatTarget; 6] =
+    component_targets(RESOURCES_ASSETS, WALL5_STANDARD_NAMES, 44);
+const WALL5_NORSELANDS_HP: [ComponentFloatTarget; 2] =
+    component_targets(RESOURCES_ASSETS, WALL5_NORSELANDS_NAMES, 44);
 const BAG_SCALE: [ComponentFloatTarget; 12] = [
     ComponentFloatTarget {
         file: SHARED_ASSETS,
@@ -270,6 +283,8 @@ struct AssetSettings {
     builder_walk_speed: f32,
     builder_run_speed: f32,
     builder_work_time: f32,
+    wall5_standard_hit_points: i32,
+    wall5_norselands_hit_points: i32,
     bag_scale: f32,
 }
 
@@ -893,6 +908,21 @@ fn write_float(bytes: &mut [u8], offset: usize, value: f32) -> Result<(), String
     Ok(())
 }
 
+fn read_int(bytes: &[u8], offset: usize) -> Result<i32, String> {
+    let slice = bytes
+        .get(offset..offset + 4)
+        .ok_or_else(|| format!("Address {offset} is outside the asset file"))?;
+    Ok(i32::from_le_bytes(slice.try_into().unwrap()))
+}
+
+fn write_int(bytes: &mut [u8], offset: usize, value: i32) -> Result<(), String> {
+    let destination = bytes
+        .get_mut(offset..offset + 4)
+        .ok_or_else(|| format!("Address {offset} is outside the asset file"))?;
+    destination.copy_from_slice(&value.to_le_bytes());
+    Ok(())
+}
+
 fn consistent_value(
     resources: &[u8],
     shared: &[u8],
@@ -946,6 +976,38 @@ fn component_value(
         target.relative_offset,
     )?;
     read_float(bytes, offset)
+}
+
+fn consistent_component_int_value(
+    resources: &[u8],
+    script_path: i64,
+    targets: &[ComponentFloatTarget],
+) -> Result<i32, String> {
+    let first = targets
+        .first()
+        .ok_or_else(|| "No Wall5 targets configured".to_string())?;
+    let offset = resolve_component_offset(
+        resources,
+        script_path,
+        first.game_object,
+        first.relative_offset,
+    )?;
+    let value = read_int(resources, offset)?;
+    for target in &targets[1..] {
+        let offset = resolve_component_offset(
+            resources,
+            script_path,
+            target.game_object,
+            target.relative_offset,
+        )?;
+        if read_int(resources, offset)? != value {
+            return Err(format!(
+                "Wall5 variants have different HP values; check {} before applying changes",
+                target.game_object
+            ));
+        }
+    }
+    Ok(value)
 }
 
 fn consistent_component_value(
@@ -1039,6 +1101,7 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
         find_mono_script_path(&global_managers, "BuffUnitsSteedAbility")?;
     let archer_script_path = find_mono_script_path(&global_managers, "Archer")?;
     let worker_script_path = find_mono_script_path(&global_managers, "Worker")?;
+    let damageable_script_path = find_mono_script_path(&global_managers, "Damageable")?;
     Ok(AssetSettings {
         griffin_run_speed: consistent_component_value(
             &resources,
@@ -1191,6 +1254,16 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
             worker_script_path,
             &BUILDER_WORK_TIME,
         )?,
+        wall5_standard_hit_points: consistent_component_int_value(
+            &resources,
+            damageable_script_path,
+            &WALL5_STANDARD_HP,
+        )?,
+        wall5_norselands_hit_points: consistent_component_int_value(
+            &resources,
+            damageable_script_path,
+            &WALL5_NORSELANDS_HP,
+        )?,
         bag_scale: consistent_builtin_component_value(&resources, &shared, 4, &BAG_SCALE)?,
     })
 }
@@ -1262,6 +1335,24 @@ fn write_component_targets(
     Ok(())
 }
 
+fn write_component_int_targets(
+    resources: &mut [u8],
+    script_path: i64,
+    targets: &[ComponentFloatTarget],
+    value: i32,
+) -> Result<(), String> {
+    for target in targets {
+        let offset = resolve_component_offset(
+            resources,
+            script_path,
+            target.game_object,
+            target.relative_offset,
+        )?;
+        write_int(resources, offset, value)?;
+    }
+    Ok(())
+}
+
 fn write_builtin_component_targets(
     resources: &mut [u8],
     shared: &mut [u8],
@@ -1287,6 +1378,11 @@ fn write_builtin_component_targets(
 }
 
 fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
+    if !(1..=1_000_000).contains(&settings.wall5_standard_hit_points)
+        || !(1..=1_000_000).contains(&settings.wall5_norselands_hit_points)
+    {
+        return Err("Wall5 HP must be a whole number between 1 and 1,000,000".into());
+    }
     let values = [
         settings.griffin_run_speed,
         settings.griffin_forest_multiplier,
@@ -1365,6 +1461,7 @@ fn apply_game_assets(
         find_mono_script_path(&global_managers, "BuffUnitsSteedAbility")?;
     let archer_script_path = find_mono_script_path(&global_managers, "Archer")?;
     let worker_script_path = find_mono_script_path(&global_managers, "Worker")?;
+    let damageable_script_path = find_mono_script_path(&global_managers, "Damageable")?;
 
     write_component_targets(
         &mut resources,
@@ -1557,6 +1654,18 @@ fn apply_game_assets(
         worker_script_path,
         &BUILDER_WORK_TIME,
         settings.builder_work_time,
+    )?;
+    write_component_int_targets(
+        &mut resources,
+        damageable_script_path,
+        &WALL5_STANDARD_HP,
+        settings.wall5_standard_hit_points,
+    )?;
+    write_component_int_targets(
+        &mut resources,
+        damageable_script_path,
+        &WALL5_NORSELANDS_HP,
+        settings.wall5_norselands_hit_points,
     )?;
     write_builtin_component_targets(
         &mut resources,
@@ -1834,6 +1943,20 @@ mod tests {
             assert!(read_float(bytes, offset)
                 .expect("Transform float")
                 .is_finite());
+        }
+        let damageable =
+            find_mono_script_path(&global_managers, "Damageable").expect("Damageable script");
+        let mut changed_resources = resources.clone();
+        for targets in [&WALL5_STANDARD_HP[..], &WALL5_NORSELANDS_HP[..]] {
+            let original = consistent_component_int_value(&resources, damageable, targets)
+                .expect("Wall5 initial HP");
+            write_component_int_targets(&mut changed_resources, damageable, targets, original + 1)
+                .expect("write Wall5 initial HP in memory");
+            assert_eq!(
+                consistent_component_int_value(&changed_resources, damageable, targets)
+                    .expect("read changed Wall5 initial HP"),
+                original + 1
+            );
         }
         read_asset_settings(&directory).expect("installed asset settings should load");
     }
