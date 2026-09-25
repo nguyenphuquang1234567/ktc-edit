@@ -154,6 +154,11 @@ const WALL5_STANDARD_HP: [ComponentFloatTarget; 6] =
     component_targets(RESOURCES_ASSETS, WALL5_STANDARD_NAMES, 44);
 const WALL5_NORSELANDS_HP: [ComponentFloatTarget; 2] =
     component_targets(RESOURCES_ASSETS, WALL5_NORSELANDS_NAMES, 44);
+const KNIGHT_WALLET_NAMES: [&str; 3] = ["Knight", "Knight_norselands", "Knight_greece"];
+const KNIGHT_WALLET_CAPACITY: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, KNIGHT_WALLET_NAMES, 268);
+const KNIGHT_WALLET_PAY_TAXES_ABOVE: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, KNIGHT_WALLET_NAMES, 40);
 const BAG_SCALE: [ComponentFloatTarget; 12] = [
     ComponentFloatTarget {
         file: SHARED_ASSETS,
@@ -285,6 +290,8 @@ struct AssetSettings {
     builder_work_time: f32,
     wall5_standard_hit_points: i32,
     wall5_norselands_hit_points: i32,
+    knight_wallet_capacity: i32,
+    knight_wallet_pay_taxes_above: i32,
     bag_scale: f32,
 }
 
@@ -541,7 +548,9 @@ fn create_backup(original: &Path) -> Result<PathBuf, String> {
                 fname.starts_with(&prefix) && fname.ends_with(".bak")
             })
             .filter_map(|p| {
-                let time = fs::metadata(&p).and_then(|m| m.modified()).unwrap_or(UNIX_EPOCH);
+                let time = fs::metadata(&p)
+                    .and_then(|m| m.modified())
+                    .unwrap_or(UNIX_EPOCH);
                 Some((p, time))
             })
             .collect();
@@ -551,7 +560,11 @@ fn create_backup(original: &Path) -> Result<PathBuf, String> {
             let to_delete = backups.len() - 5;
             for (old_backup, _) in backups.into_iter().take(to_delete) {
                 if let Err(e) = fs::remove_file(&old_backup) {
-                    debug!("Failed to clean up old backup {}: {}", old_backup.display(), e);
+                    debug!(
+                        "Failed to clean up old backup {}: {}",
+                        old_backup.display(),
+                        e
+                    );
                 } else {
                     info!("Cleaned up old backup: {}", old_backup.display());
                 }
@@ -592,15 +605,21 @@ fn default_save_file_path() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     {
         let home = std::env::var_os("HOME").map(PathBuf::from)?;
-        let path = home.join("Library/Application Support/nl.noio.kingdom-two-crowns/Release").join(SAVE_FILENAME);
+        let path = home
+            .join("Library/Application Support/nl.noio.kingdom-two-crowns/Release")
+            .join(SAVE_FILENAME);
         if path.exists() {
             return Some(path);
         }
     }
     #[cfg(target_os = "windows")]
     {
-        let appdata = std::env::var_os("APPDATA").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from)?;
-        let path = appdata.join("LocalLow/Raw Fury/Kingdom Two Crowns/Release").join(SAVE_FILENAME);
+        let appdata = std::env::var_os("APPDATA")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(PathBuf::from)?;
+        let path = appdata
+            .join("LocalLow/Raw Fury/Kingdom Two Crowns/Release")
+            .join(SAVE_FILENAME);
         if path.exists() {
             return Some(path);
         }
@@ -612,7 +631,9 @@ fn reset_walls_damageable_in_save_file(save_path: &Path) -> Result<usize, String
     let file = fs::File::open(save_path).map_err(|err| err.to_string())?;
     let mut decoder = GzDecoder::new(file);
     let mut json = String::new();
-    decoder.read_to_string(&mut json).map_err(|err| err.to_string())?;
+    decoder
+        .read_to_string(&mut json)
+        .map_err(|err| err.to_string())?;
     let mut data: Value = serde_json::from_str(&json).map_err(|err| err.to_string())?;
 
     let mut cleared_count = 0;
@@ -620,13 +641,18 @@ fn reset_walls_damageable_in_save_file(save_path: &Path) -> Result<usize, String
         for campaign in campaigns {
             if let Some(islands) = campaign.get_mut("_islands").and_then(|v| v.as_array_mut()) {
                 for island in islands {
-                    if let Some(objects) = island.get_mut("objects").and_then(|v| v.as_array_mut()) {
+                    if let Some(objects) = island.get_mut("objects").and_then(|v| v.as_array_mut())
+                    {
                         for obj in objects {
                             let name = obj.get("name").and_then(|v| v.as_str()).unwrap_or("");
-                            let prefab = obj.get("prefabPath").and_then(|v| v.as_str()).unwrap_or("");
-                            let is_wall = (name.contains("Wall") || prefab.contains("Wall")) && !name.contains("Wreck");
+                            let prefab =
+                                obj.get("prefabPath").and_then(|v| v.as_str()).unwrap_or("");
+                            let is_wall = (name.contains("Wall") || prefab.contains("Wall"))
+                                && !name.contains("Wreck");
                             if is_wall {
-                                if let Some(components) = obj.get_mut("componentData2").and_then(|v| v.as_array_mut()) {
+                                if let Some(components) =
+                                    obj.get_mut("componentData2").and_then(|v| v.as_array_mut())
+                                {
                                     let before_len = components.len();
                                     components.retain(|c| {
                                         c.get("name").and_then(|v| v.as_str()) != Some("Damageable")
@@ -647,10 +673,16 @@ fn reset_walls_damageable_in_save_file(save_path: &Path) -> Result<usize, String
         create_backup(save_path)?;
         let modified_json = serde_json::to_string(&data).map_err(|err| err.to_string())?;
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(modified_json.as_bytes()).map_err(|err| err.to_string())?;
+        encoder
+            .write_all(modified_json.as_bytes())
+            .map_err(|err| err.to_string())?;
         let compressed = encoder.finish().map_err(|err| err.to_string())?;
         atomic_replace(save_path, &compressed)?;
-        info!("Reset Damageable on {} walls in {}", cleared_count, save_path.display());
+        info!(
+            "Reset Damageable on {} walls in {}",
+            cleared_count,
+            save_path.display()
+        );
     }
 
     Ok(cleared_count)
@@ -1083,7 +1115,7 @@ fn consistent_component_int_value(
 ) -> Result<i32, String> {
     let first = targets
         .first()
-        .ok_or_else(|| "No Wall5 targets configured".to_string())?;
+        .ok_or_else(|| "No component targets configured".to_string())?;
     let offset = resolve_component_offset(
         resources,
         script_path,
@@ -1100,7 +1132,7 @@ fn consistent_component_int_value(
         )?;
         if read_int(resources, offset)? != value {
             return Err(format!(
-                "Wall5 variants have different HP values; check {} before applying changes",
+                "Component variants have different values; check {} before applying changes",
                 target.game_object
             ));
         }
@@ -1200,6 +1232,7 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
     let archer_script_path = find_mono_script_path(&global_managers, "Archer")?;
     let worker_script_path = find_mono_script_path(&global_managers, "Worker")?;
     let damageable_script_path = find_mono_script_path(&global_managers, "Damageable")?;
+    let wallet_script_path = find_mono_script_path(&global_managers, "Wallet")?;
     Ok(AssetSettings {
         griffin_run_speed: consistent_component_value(
             &resources,
@@ -1362,6 +1395,16 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
             damageable_script_path,
             &WALL5_NORSELANDS_HP,
         )?,
+        knight_wallet_capacity: consistent_component_int_value(
+            &resources,
+            wallet_script_path,
+            &KNIGHT_WALLET_CAPACITY,
+        )?,
+        knight_wallet_pay_taxes_above: consistent_component_int_value(
+            &resources,
+            wallet_script_path,
+            &KNIGHT_WALLET_PAY_TAXES_ABOVE,
+        )?,
         bag_scale: consistent_builtin_component_value(&resources, &shared, 4, &BAG_SCALE)?,
     })
 }
@@ -1481,6 +1524,11 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
     {
         return Err("Wall5 HP must be a whole number between 1 and 1,000,000".into());
     }
+    if !(1..=1_000_000).contains(&settings.knight_wallet_capacity)
+        || !(0..=1_000_000).contains(&settings.knight_wallet_pay_taxes_above)
+    {
+        return Err("Knight Wallet values must be whole numbers between 0 and 1,000,000; capacity must be at least 1".into());
+    }
     let values = [
         settings.griffin_run_speed,
         settings.griffin_forest_multiplier,
@@ -1561,6 +1609,7 @@ fn apply_game_assets(
     let archer_script_path = find_mono_script_path(&global_managers, "Archer")?;
     let worker_script_path = find_mono_script_path(&global_managers, "Worker")?;
     let damageable_script_path = find_mono_script_path(&global_managers, "Damageable")?;
+    let wallet_script_path = find_mono_script_path(&global_managers, "Wallet")?;
 
     write_component_targets(
         &mut resources,
@@ -1766,6 +1815,18 @@ fn apply_game_assets(
         &WALL5_NORSELANDS_HP,
         settings.wall5_norselands_hit_points,
     )?;
+    write_component_int_targets(
+        &mut resources,
+        wallet_script_path,
+        &KNIGHT_WALLET_CAPACITY,
+        settings.knight_wallet_capacity,
+    )?;
+    write_component_int_targets(
+        &mut resources,
+        wallet_script_path,
+        &KNIGHT_WALLET_PAY_TAXES_ABOVE,
+        settings.knight_wallet_pay_taxes_above,
+    )?;
     write_builtin_component_targets(
         &mut resources,
         &mut shared,
@@ -1809,7 +1870,11 @@ fn apply_game_assets(
         if let Some(save_file) = default_save_file_path() {
             match reset_walls_damageable_in_save_file(&save_file) {
                 Ok(count) => cleared_walls = Some(count),
-                Err(err) => error!("Failed to reset walls in save {}: {}", save_file.display(), err),
+                Err(err) => error!(
+                    "Failed to reset walls in save {}: {}",
+                    save_file.display(),
+                    err
+                ),
             }
         }
     }
@@ -2069,6 +2134,28 @@ mod tests {
                 original + 1
             );
         }
+        let wallet = find_mono_script_path(&global_managers, "Wallet").expect("Wallet script");
+        let squire_wallet_offset =
+            resolve_component_offset(&resources, wallet, "Squire", 268).expect("Squire Wallet");
+        let squire_capacity = read_int(&resources, squire_wallet_offset).expect("Squire capacity");
+        for targets in [
+            &KNIGHT_WALLET_CAPACITY[..],
+            &KNIGHT_WALLET_PAY_TAXES_ABOVE[..],
+        ] {
+            let original = consistent_component_int_value(&resources, wallet, targets)
+                .expect("Knight Wallet value");
+            write_component_int_targets(&mut changed_resources, wallet, targets, original + 1)
+                .expect("write Knight Wallet in memory");
+            assert_eq!(
+                consistent_component_int_value(&changed_resources, wallet, targets)
+                    .expect("read changed Knight Wallet"),
+                original + 1
+            );
+        }
+        assert_eq!(
+            read_int(&changed_resources, squire_wallet_offset).expect("unchanged Squire capacity"),
+            squire_capacity
+        );
         read_asset_settings(&directory).expect("installed asset settings should load");
     }
 }

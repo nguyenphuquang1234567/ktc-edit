@@ -76,6 +76,8 @@
     builderWorkTime: number;
     wall5StandardHitPoints: number;
     wall5NorselandsHitPoints: number;
+    knightWalletCapacity: number;
+    knightWalletPayTaxesAbove: number;
     bagScale: number;
   }
 
@@ -1479,6 +1481,13 @@
               <label>Run speed<input type="number" min="0" step="0.05" value={assetSettings.builderRunSpeed} oninput={(e) => updateAssetNumber('builderRunSpeed', e)} /></label>
               <label>Work time (seconds)<input type="number" min="0" step="0.05" value={assetSettings.builderWorkTime} oninput={(e) => updateAssetNumber('builderWorkTime', e)} /></label>
               <p class="muted">Applied to regular and Norse Lands builders. Lower work time means faster building and chopping.</p>
+            </section>
+
+            <section class="card asset-card">
+              <h2>Knight Wallet</h2>
+              <label>Coin capacity<input type="number" min="1" max="1000000" step="1" value={assetSettings.knightWalletCapacity} oninput={(e) => updateAssetNumber('knightWalletCapacity', e)} /></label>
+              <label>Pay taxes above<input type="number" min="0" max="1000000" step="1" value={assetSettings.knightWalletPayTaxesAbove} oninput={(e) => updateAssetNumber('knightWalletPayTaxesAbove', e)} /></label>
+              <p class="muted">Applied to regular, Norse Lands, and Greece Knights. Squires are unchanged.</p>
             </section>
 
             <section class="card asset-card">
