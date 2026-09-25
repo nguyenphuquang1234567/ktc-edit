@@ -301,6 +301,7 @@ struct AssetApplyResponse {
     resources_backup: String,
     shared_assets_backup: String,
     settings: AssetSettings,
+    save_cleared_walls: Option<usize>,
 }
 
 #[derive(Serialize)]
@@ -556,6 +557,74 @@ fn default_game_data_directory() -> PathBuf {
             .unwrap_or_default();
         home.join(".local/share/Steam/steamapps/common/Kingdom Two Crowns/KingdomTwoCrowns_Data")
     }
+}
+
+fn default_save_file_path() -> Option<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var_os("HOME").map(PathBuf::from)?;
+        let path = home.join("Library/Application Support/nl.noio.kingdom-two-crowns/Release").join(SAVE_FILENAME);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let appdata = std::env::var_os("APPDATA").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from)?;
+        let path = appdata.join("LocalLow/Raw Fury/Kingdom Two Crowns/Release").join(SAVE_FILENAME);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+fn reset_walls_damageable_in_save_file(save_path: &Path) -> Result<usize, String> {
+    let file = fs::File::open(save_path).map_err(|err| err.to_string())?;
+    let mut decoder = GzDecoder::new(file);
+    let mut json = String::new();
+    decoder.read_to_string(&mut json).map_err(|err| err.to_string())?;
+    let mut data: Value = serde_json::from_str(&json).map_err(|err| err.to_string())?;
+
+    let mut cleared_count = 0;
+    if let Some(campaigns) = data.get_mut("campaigns").and_then(|v| v.as_array_mut()) {
+        for campaign in campaigns {
+            if let Some(islands) = campaign.get_mut("_islands").and_then(|v| v.as_array_mut()) {
+                for island in islands {
+                    if let Some(objects) = island.get_mut("objects").and_then(|v| v.as_array_mut()) {
+                        for obj in objects {
+                            let name = obj.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                            let prefab = obj.get("prefabPath").and_then(|v| v.as_str()).unwrap_or("");
+                            let is_wall = (name.contains("Wall") || prefab.contains("Wall")) && !name.contains("Wreck");
+                            if is_wall {
+                                if let Some(components) = obj.get_mut("componentData2").and_then(|v| v.as_array_mut()) {
+                                    let before_len = components.len();
+                                    components.retain(|c| {
+                                        c.get("name").and_then(|v| v.as_str()) != Some("Damageable")
+                                    });
+                                    if components.len() < before_len {
+                                        cleared_count += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if cleared_count > 0 {
+        create_backup(save_path)?;
+        let modified_json = serde_json::to_string(&data).map_err(|err| err.to_string())?;
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(modified_json.as_bytes()).map_err(|err| err.to_string())?;
+        let compressed = encoder.finish().map_err(|err| err.to_string())?;
+        atomic_replace(save_path, &compressed)?;
+        info!("Reset Damageable on {} walls in {}", cleared_count, save_path.display());
+    }
+
+    Ok(cleared_count)
 }
 
 fn validate_asset_directory(directory: &Path) -> Result<(), String> {
@@ -1439,6 +1508,7 @@ fn atomic_replace(path: &Path, bytes: &[u8]) -> Result<(), String> {
 fn apply_game_assets(
     data_directory: String,
     settings: AssetSettings,
+    reset_save_walls: Option<bool>,
 ) -> Result<AssetApplyResponse, String> {
     validate_settings(&settings)?;
     if game_is_running() {
@@ -1704,10 +1774,22 @@ fn apply_game_assets(
     }
 
     let verified = read_asset_settings(&directory)?;
+
+    let mut cleared_walls = None;
+    if reset_save_walls.unwrap_or(false) {
+        if let Some(save_file) = default_save_file_path() {
+            match reset_walls_damageable_in_save_file(&save_file) {
+                Ok(count) => cleared_walls = Some(count),
+                Err(err) => error!("Failed to reset walls in save {}: {}", save_file.display(), err),
+            }
+        }
+    }
+
     Ok(AssetApplyResponse {
         resources_backup: resources_backup.to_string_lossy().to_string(),
         shared_assets_backup: shared_backup.to_string_lossy().to_string(),
         settings: verified,
+        save_cleared_walls: cleared_walls,
     })
 }
 

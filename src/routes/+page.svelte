@@ -88,6 +88,7 @@
     resourcesBackup: string;
     sharedAssetsBackup: string;
     settings: AssetSettings;
+    saveClearedWalls?: number | null;
   }
 
   let filePath = $state<string | null>(null);
@@ -103,6 +104,7 @@
   let assetStatus = $state<string | null>(null);
   let assetError = $state<string | null>(null);
   let assetBackups = $state<string[]>([]);
+  let resetSaveWalls = $state(true);
   let selectedKey = $state<string | null>(null);
   let selectedCampaign = $state(0);
   let selectedIsland = $state(0);
@@ -1355,11 +1357,16 @@
     try {
       const response = await invoke<AssetApplyResponse>("apply_game_assets", {
         dataDirectory: assetDirectory,
-        settings: assetSettings
+        settings: assetSettings,
+        resetSaveWalls: resetSaveWalls
       });
       assetSettings = response.settings;
       assetBackups = [response.resourcesBackup, response.sharedAssetsBackup];
-      assetStatus = "Changes applied and verified in both resources.assets and sharedassets0.assets.";
+      if (typeof response.saveClearedWalls === 'number' && response.saveClearedWalls > 0) {
+        assetStatus = `Changes applied to assets. Also cleaned Damageable overrides on ${response.saveClearedWalls} walls in the save file.`;
+      } else {
+        assetStatus = "Changes applied and verified in both resources.assets and sharedassets0.assets.";
+      }
     } catch (error) {
       assetError = String(error);
     } finally {
@@ -1478,7 +1485,11 @@
               <h2>Iron Wall (Wall5)</h2>
               <label>Base HP — regular, Greece, Bamboo<input type="number" min="1" max="1000000" step="1" value={assetSettings.wall5StandardHitPoints} oninput={(e) => updateAssetNumber('wall5StandardHitPoints', e)} /></label>
               <label>Base HP — Norse Lands<input type="number" min="1" max="1000000" step="1" value={assetSettings.wall5NorselandsHitPoints} oninput={(e) => updateAssetNumber('wall5NorselandsHitPoints', e)} /></label>
-              <p class="muted">Applies to normal and horn variants. Wall Statue multipliers are unchanged; existing walls keep their saved current HP.</p>
+              <label class="asset-checkbox-label">
+                <input type="checkbox" bind:checked={resetSaveWalls} />
+                <span>Reset all existing walls in save (removes Damageable overrides so all walls use this new HP)</span>
+              </label>
+              <p class="muted">Applies to normal and horn variants. Wall Statue multipliers are unchanged.</p>
             </section>
 
             <section class="card asset-card">
@@ -4071,6 +4082,24 @@
     grid-template-columns: 1fr 110px;
     align-items: center;
     gap: 0.75rem;
+  }
+
+  .asset-card label.asset-checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+    cursor: pointer;
+    font-size: 0.88rem;
+    line-height: 1.35;
+  }
+
+  .asset-card label.asset-checkbox-label input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    margin: 0.15rem 0 0 0;
+    flex-shrink: 0;
+    cursor: pointer;
   }
 
   .asset-card input {
