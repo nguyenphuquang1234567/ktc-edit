@@ -1178,7 +1178,10 @@ function applyWallUpgrade(wallObj: MutableJSONObject, targetLevel: number, addHo
 
   setOrUpdateComponent("WorkableBuilding", "WorkableBuildingData", JSON.stringify({ currentBuildPoints: 0.0, usesConstructionBuildingComponent: true }));
   setOrUpdateComponent("PayableUpgrade", "PayableUpgradeData", JSON.stringify({ cooldown: 0.0 }));
-  setOrUpdateComponent("Damageable", "DamageableData", JSON.stringify({ hitPoints: 600, invulnerable: false }));
+  const dmgIdx = components.findIndex(c => c.name === "Damageable");
+  if (dmgIdx !== -1) {
+    components.splice(dmgIdx, 1);
+  }
   setOrUpdateComponent("ConstructionBuildingComponent", "ConstructionBuildingComponentData", JSON.stringify({ CurrentBuildPoints: 90.0 }));
 
   if (level === 5 && !withHorn) {
