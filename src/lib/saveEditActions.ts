@@ -896,10 +896,10 @@ export function spawnKnights(doc: JSONValue, options: SpawnKnightsOptions): JSON
       payload.state = 2; // Guarding/Patrolling
     });
 
-    // Ensure 3 HP and full 15 coins protection
+    // Ensure 3 HP and full 50 coins protection
     setDamageableHP(knight, 3);
     const kComps = ensureComponentList(knight);
-    updateWallet(kComps, 15);
+    updateWallet(kComps, 50);
 
     objects.push(knight);
 
