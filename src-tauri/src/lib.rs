@@ -530,6 +530,35 @@ fn create_backup(original: &Path) -> Result<PathBuf, String> {
 
     info!("Backup copy created: {}", backup_path.display());
 
+    // Automatically retain only the 5 most recent backups for this file
+    if let Ok(entries) = fs::read_dir(parent) {
+        let prefix = format!("{}_", stem);
+        let mut backups: Vec<(PathBuf, SystemTime)> = entries
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| {
+                let fname = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                fname.starts_with(&prefix) && fname.ends_with(".bak")
+            })
+            .filter_map(|p| {
+                let time = fs::metadata(&p).and_then(|m| m.modified()).unwrap_or(UNIX_EPOCH);
+                Some((p, time))
+            })
+            .collect();
+
+        if backups.len() > 5 {
+            backups.sort_by_key(|b| b.1); // Sort oldest to newest
+            let to_delete = backups.len() - 5;
+            for (old_backup, _) in backups.into_iter().take(to_delete) {
+                if let Err(e) = fs::remove_file(&old_backup) {
+                    debug!("Failed to clean up old backup {}: {}", old_backup.display(), e);
+                } else {
+                    info!("Cleaned up old backup: {}", old_backup.display());
+                }
+            }
+        }
+    }
+
     Ok(backup_path)
 }
 
