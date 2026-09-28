@@ -1147,6 +1147,8 @@
         barrels,
       });
       const updated = setCatapultOilBarrels(current, {
+        targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         side,
@@ -1831,14 +1833,16 @@
             >
               {t.tabs.navigation}
             </button>
-            <button 
-              type="button"
-              class="tab"
-              class:active={activeTab === 'combat'}
-              onclick={() => activeTab = 'combat'}
-            >
-              {t.tabs.combat}
-            </button>
+          {/if}
+          <button 
+            type="button"
+            class="tab"
+            class:active={activeTab === 'combat'}
+            onclick={() => activeTab = 'combat'}
+          >
+            {t.tabs.combat}
+          </button>
+          {#if targetMode === "campaign"}
             <button 
               type="button"
               class="tab"
@@ -2159,6 +2163,76 @@
                     </div>
                   </div>
                 {/if}
+              </div>
+            </section>
+
+            <!-- Catapult Section inside Inspector -->
+            <section class="card">
+              <div class="card-header-flex">
+                <h3>☄️ {t.combat.catapultAmmo}</h3>
+              </div>
+              <div class="form-row wrap" style="align-items: flex-end; gap: 1.5rem; margin-top: 0.5rem;">
+                <!-- Left Catapult -->
+                <div style="flex: 1; min-width: 250px; background: rgba(255,255,255,0.02); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--color-border);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 600; color: #64b5f6;">{t.combat.catapultLeft}</span>
+                    {#if leftCatapult}
+                      <span class="coord-badge" style="font-size: 0.8rem;">X = {leftCatapult.x}</span>
+                    {:else}
+                      <span style="font-size: 0.8rem; color: var(--color-text-secondary);">(Not built)</span>
+                    {/if}
+                  </div>
+                  {#if leftCatapult}
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                      <label style="flex: 1; margin: 0;">
+                        {t.combat.barrelsCount}
+                        <input
+                          type="number"
+                          min="0"
+                          max="999"
+                          value={leftCatapultInput}
+                          oninput={(event) => (customLeftBarrels = Math.max(0, Number((event.currentTarget as HTMLInputElement).value)))}
+                        />
+                      </label>
+                      <button type="button" onclick={() => handleSetCatapultBarrels(-1)} style="margin-top: 1.25rem;">
+                        {t.combat.catapultApply}
+                      </button>
+                    </div>
+                  {:else}
+                    <p class="muted" style="margin: 0; font-size: 0.85rem;">{t.combat.noCatapultOnIsland}</p>
+                  {/if}
+                </div>
+
+                <!-- Right Catapult -->
+                <div style="flex: 1; min-width: 250px; background: rgba(255,255,255,0.02); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--color-border);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 600; color: #ffb74d;">{t.combat.catapultRight}</span>
+                    {#if rightCatapult}
+                      <span class="coord-badge" style="font-size: 0.8rem;">X = {rightCatapult.x}</span>
+                    {:else}
+                      <span style="font-size: 0.8rem; color: var(--color-text-secondary);">(Not built)</span>
+                    {/if}
+                  </div>
+                  {#if rightCatapult}
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                      <label style="flex: 1; margin: 0;">
+                        {t.combat.barrelsCount}
+                        <input
+                          type="number"
+                          min="0"
+                          max="999"
+                          value={rightCatapultInput}
+                          oninput={(event) => (customRightBarrels = Math.max(0, Number((event.currentTarget as HTMLInputElement).value)))}
+                        />
+                      </label>
+                      <button type="button" onclick={() => handleSetCatapultBarrels(1)} style="margin-top: 1.25rem;">
+                        {t.combat.catapultApply}
+                      </button>
+                    </div>
+                  {:else}
+                    <p class="muted" style="margin: 0; font-size: 0.85rem;">{t.combat.noCatapultOnIsland}</p>
+                  {/if}
+                </div>
               </div>
             </section>
 
