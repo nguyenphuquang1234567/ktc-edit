@@ -37,6 +37,8 @@ export interface SpawnKnightsOptions extends SelectionOptions {
 interface CampaignIslandOptions {
   campaignIndex: number;
   islandIndex: number;
+  targetMode?: "campaign" | "challenge";
+  challengeIndex?: number;
 }
 
 export interface GotoOptions extends CampaignIslandOptions {
@@ -75,8 +77,7 @@ export interface TreesOptions extends CampaignIslandOptions {
   coins?: number;
 }
 
-export interface SpawnUnitsOptions extends CampaignIslandOptions {
-  playerIndex: number;
+export interface SpawnUnitsOptions extends SelectionOptions {
   archers?: number;
   workers?: number;
   pikemen?: number;
@@ -837,21 +838,12 @@ function spawnUnitsByConfig(
     throw new Error("The count must be positive");
   }
 
-  const campaigns = toArray(toObject(root, "Invalid save data").campaigns, "The save contains no campaigns");
-  const campaign = campaigns[campaignIndex];
-  if (!campaign) {
-    throw new Error("Campaign not found");
-  }
-
-  const campaignObject = toObject(campaign, "Invalid campaign");
-  const islands = campaignObject._islands ? toArray(campaignObject._islands, "No islands found for the campaign") : [];
-  const island = islands[islandIndex];
-  if (!island) {
-    throw new Error("Island not found");
-  }
-
-  const islandObj = toObject(island, "Invalid island data");
-  const objects = toArray(islandObj.objects, "No objects found on the island");
+  const { objects } = getIslandContext(root, {
+    campaignIndex,
+    islandIndex,
+    targetMode: options.mode,
+    challengeIndex: options.challengeIndex
+  });
 
   const template = findTemplateByPrefab(objects, config.prefabs) ?? getFallbackTemplate(config);
 
@@ -914,7 +906,12 @@ export function spawnKnights(doc: JSONValue, options: SpawnKnightsOptions): JSON
     throw new Error("The count must be positive");
   }
 
-  const { objects } = getIslandContext(root, { campaignIndex, islandIndex });
+  const { objects } = getIslandContext(root, {
+    campaignIndex,
+    islandIndex,
+    targetMode: options.mode,
+    challengeIndex: options.challengeIndex
+  });
 
   // Locate Castle position as the spawn location
   let spawnX = 0;
@@ -1484,6 +1481,28 @@ function upgradeWalls(objects: MutableJSONObject[], level: number, generators: I
 
 function getIslandContext(root: JSONValue, options: CampaignIslandOptions) {
   const rootObj = toObject(root, "Invalid save data");
+  if (options.targetMode === "challenge") {
+    const challenges = toArray(rootObj.challenges, "The save contains no challenges");
+    const chIdx = options.challengeIndex ?? 0;
+    const challenge = challenges[chIdx];
+    if (!challenge) {
+      throw new Error("Challenge not found");
+    }
+    const challengeObject = toObject(challenge, "Invalid challenge");
+    const islands = challengeObject._islands
+      ? toArray(challengeObject._islands, "No islands found for the challenge")
+      : [];
+    const island = islands[0];
+    if (!island) {
+      throw new Error("Island not found");
+    }
+    const islandObject = toObject(island, "Invalid island data");
+    const objects = islandObject.objects
+      ? toArray(islandObject.objects, "No objects found on the island")
+      : [];
+    return { campaigns: [], campaignObject: challengeObject, islandObject, objects } as const;
+  }
+
   const campaigns = toArray(rootObj.campaigns, "The save contains no campaigns");
   const campaign = campaigns[options.campaignIndex];
   if (!campaign) {

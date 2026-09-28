@@ -158,7 +158,12 @@
   let t = $derived(getTranslations(currentLang));
 
   let islandOverview = $derived(
-    data ? getIslandOverview(data, { campaignIndex: selectedCampaign, islandIndex: selectedIsland }) : null
+    data ? getIslandOverview(data, {
+      campaignIndex: selectedCampaign,
+      islandIndex: selectedIsland,
+      targetMode: targetMode,
+      challengeIndex: selectedChallenge
+    }) : null
   );
 
   let leftCatapult = $derived(
@@ -179,7 +184,7 @@
   );
 
   let knightStats = $derived(
-    countKnightsBySide(data, selectedCampaign, selectedIsland)
+    countKnightsBySide(data, selectedCampaign, selectedIsland, targetMode, selectedChallenge)
   );
 
   let treeFilterSide = $state<'all' | 'left' | 'right'>('all');
@@ -251,40 +256,53 @@
     "Prefabs/Characters/norselands/Knight_norselands"
   ];
 
-  function countUnits(
+  function getContextObjects(
     value: JSONValue | null,
+    mode: "campaign" | "challenge",
     campaignIndex: number,
     islandIndex: number,
-    prefabs: string[]
-  ): number | null {
+    challengeIndex: number
+  ): JSONValue[] | null {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       return null;
     }
 
-    const campaigns = (value as Record<string, JSONValue>).campaigns;
-    if (!Array.isArray(campaigns)) {
-      return null;
+    const root = value as Record<string, JSONValue>;
+    if (mode === "challenge") {
+      const challenges = root.challenges;
+      if (!Array.isArray(challenges)) return null;
+      const challenge = challenges[challengeIndex];
+      if (!challenge || typeof challenge !== "object" || Array.isArray(challenge)) return null;
+      const islands = (challenge as Record<string, JSONValue>)._islands;
+      if (!Array.isArray(islands) || islands.length === 0) return null;
+      const island = islands[0];
+      if (!island || typeof island !== "object" || Array.isArray(island)) return null;
+      const objects = (island as Record<string, JSONValue>).objects;
+      return Array.isArray(objects) ? objects : null;
     }
 
+    const campaigns = root.campaigns;
+    if (!Array.isArray(campaigns)) return null;
     const campaign = campaigns[campaignIndex];
-    if (!campaign || typeof campaign !== "object" || Array.isArray(campaign)) {
-      return null;
-    }
-
+    if (!campaign || typeof campaign !== "object" || Array.isArray(campaign)) return null;
     const islands = (campaign as Record<string, JSONValue>)._islands;
-    if (!Array.isArray(islands)) {
-      return null;
-    }
-
+    if (!Array.isArray(islands)) return null;
     const island = islands[islandIndex];
-    if (!island || typeof island !== "object" || Array.isArray(island)) {
-      return null;
-    }
-
+    if (!island || typeof island !== "object" || Array.isArray(island)) return null;
     const objects = (island as Record<string, JSONValue>).objects;
-    if (!Array.isArray(objects)) {
-      return null;
-    }
+    return Array.isArray(objects) ? objects : null;
+  }
+
+  function countUnits(
+    value: JSONValue | null,
+    campaignIndex: number,
+    islandIndex: number,
+    prefabs: string[],
+    mode: "campaign" | "challenge" = "campaign",
+    challengeIndex: number = 0
+  ): number | null {
+    const objects = getContextObjects(value, mode, campaignIndex, islandIndex, challengeIndex);
+    if (!objects) return null;
 
     return objects.reduce<number>((count, entry) => {
       if (entry && typeof entry === "object" && !Array.isArray(entry)) {
@@ -301,34 +319,12 @@
   function countKnightsBySide(
     value: JSONValue | null,
     campaignIndex: number,
-    islandIndex: number
+    islandIndex: number,
+    mode: "campaign" | "challenge" = "campaign",
+    challengeIndex: number = 0
   ): { total: number; left: number; right: number } {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return { total: 0, left: 0, right: 0 };
-    }
-
-    const campaigns = (value as Record<string, JSONValue>).campaigns;
-    if (!Array.isArray(campaigns)) {
-      return { total: 0, left: 0, right: 0 };
-    }
-
-    const campaign = campaigns[campaignIndex];
-    if (!campaign || typeof campaign !== "object" || Array.isArray(campaign)) {
-      return { total: 0, left: 0, right: 0 };
-    }
-
-    const islands = (campaign as Record<string, JSONValue>)._islands;
-    if (!Array.isArray(islands)) {
-      return { total: 0, left: 0, right: 0 };
-    }
-
-    const island = islands[islandIndex];
-    if (!island || typeof island !== "object" || Array.isArray(island)) {
-      return { total: 0, left: 0, right: 0 };
-    }
-
-    const objects = (island as Record<string, JSONValue>).objects;
-    if (!Array.isArray(objects)) {
+    const objects = getContextObjects(value, mode, campaignIndex, islandIndex, challengeIndex);
+    if (!objects) {
       return { total: 0, left: 0, right: 0 };
     }
 
@@ -775,8 +771,10 @@
 
     try {
       const current = requireData();
-      const beforeArchers = countUnits(current, selectedCampaign, selectedIsland, ARCHER_PREFABS);
+      const beforeArchers = countUnits(current, selectedCampaign, selectedIsland, ARCHER_PREFABS, targetMode, selectedChallenge);
       console.info("Archer addition requested", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         player: archerPlayerIndex,
@@ -784,6 +782,8 @@
         added: archerCount,
       });
       const updated = spawnArchers(current, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: archerPlayerIndex,
@@ -791,8 +791,10 @@
       });
       data = updated;
       backupPath = null;
-      const afterArchers = countUnits(updated, selectedCampaign, selectedIsland, ARCHER_PREFABS);
+      const afterArchers = countUnits(updated, selectedCampaign, selectedIsland, ARCHER_PREFABS, targetMode, selectedChallenge);
       console.info("Archers added", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         player: archerPlayerIndex,
@@ -810,8 +812,10 @@
 
     try {
       const current = requireData();
-      const beforeWorkers = countUnits(current, selectedCampaign, selectedIsland, WORKER_PREFABS);
+      const beforeWorkers = countUnits(current, selectedCampaign, selectedIsland, WORKER_PREFABS, targetMode, selectedChallenge);
       console.info("Worker addition requested", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         player: archerPlayerIndex,
@@ -819,6 +823,8 @@
         added: workerCount,
       });
       const updated = spawnWorkers(current, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: archerPlayerIndex,
@@ -826,8 +832,10 @@
       });
       data = updated;
       backupPath = null;
-      const afterWorkers = countUnits(updated, selectedCampaign, selectedIsland, WORKER_PREFABS);
+      const afterWorkers = countUnits(updated, selectedCampaign, selectedIsland, WORKER_PREFABS, targetMode, selectedChallenge);
       console.info("Workers added", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         after: afterWorkers,
@@ -844,8 +852,10 @@
 
     try {
       const current = requireData();
-      const beforeFarmers = countUnits(current, selectedCampaign, selectedIsland, FARMER_PREFABS);
+      const beforeFarmers = countUnits(current, selectedCampaign, selectedIsland, FARMER_PREFABS, targetMode, selectedChallenge);
       console.info("Farmer addition requested", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         player: archerPlayerIndex,
@@ -853,6 +863,8 @@
         added: farmerCount,
       });
       const updated = spawnFarmers(current, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: archerPlayerIndex,
@@ -860,8 +872,10 @@
       });
       data = updated;
       backupPath = null;
-      const afterFarmers = countUnits(updated, selectedCampaign, selectedIsland, FARMER_PREFABS);
+      const afterFarmers = countUnits(updated, selectedCampaign, selectedIsland, FARMER_PREFABS, targetMode, selectedChallenge);
       console.info("Farmers added", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         after: afterFarmers,
@@ -878,8 +892,10 @@
 
     try {
       const current = requireData();
-      const beforePikemen = countUnits(current, selectedCampaign, selectedIsland, PIKEMAN_PREFABS);
+      const beforePikemen = countUnits(current, selectedCampaign, selectedIsland, PIKEMAN_PREFABS, targetMode, selectedChallenge);
       console.info("Pikeman addition requested", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         player: archerPlayerIndex,
@@ -887,6 +903,8 @@
         added: pikemanCount,
       });
       const updated = spawnPikemen(current, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: archerPlayerIndex,
@@ -894,8 +912,10 @@
       });
       data = updated;
       backupPath = null;
-      const afterPikemen = countUnits(updated, selectedCampaign, selectedIsland, PIKEMAN_PREFABS);
+      const afterPikemen = countUnits(updated, selectedCampaign, selectedIsland, PIKEMAN_PREFABS, targetMode, selectedChallenge);
       console.info("Pikemen added", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         after: afterPikemen,
@@ -912,8 +932,10 @@
 
     try {
       const current = requireData();
-      const beforeKnights = countUnits(current, selectedCampaign, selectedIsland, KNIGHT_PREFABS);
+      const beforeKnights = countUnits(current, selectedCampaign, selectedIsland, KNIGHT_PREFABS, targetMode, selectedChallenge);
       console.info("Knight addition requested", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         before: beforeKnights,
@@ -922,6 +944,8 @@
         withArchers: knightWithArchers
       });
       const updated = spawnKnights(current, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: archerPlayerIndex,
@@ -931,8 +955,10 @@
       });
       data = updated;
       backupPath = null;
-      const afterKnights = countUnits(updated, selectedCampaign, selectedIsland, KNIGHT_PREFABS);
+      const afterKnights = countUnits(updated, selectedCampaign, selectedIsland, KNIGHT_PREFABS, targetMode, selectedChallenge);
       console.info("Knights added", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         after: afterKnights
@@ -1378,6 +1404,8 @@
         pikemen,
       });
       const updated = spawnUnits(current, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: archerPlayerIndex,
@@ -1714,7 +1742,7 @@
                 value={targetMode}
                 onchange={(event) => {
                   targetMode = (event.currentTarget as HTMLSelectElement).value as "campaign" | "challenge";
-                  if (targetMode === "challenge" && activeTab !== "resources") {
+                  if (targetMode === "challenge" && activeTab !== "resources" && activeTab !== "recruitment") {
                     activeTab = "resources";
                   }
                 }}
@@ -1807,15 +1835,15 @@
             >
               {t.tabs.construction}
             </button>
-            <button 
-              type="button"
-              class="tab"
-              class:active={activeTab === 'recruitment'}
-              onclick={() => activeTab = 'recruitment'}
-            >
-              {t.tabs.recruitment}
-            </button>
           {/if}
+          <button 
+            type="button"
+            class="tab"
+            class:active={activeTab === 'recruitment'}
+            onclick={() => activeTab = 'recruitment'}
+          >
+            {t.tabs.recruitment}
+          </button>
         </div>
 
         {#if activeTab === 'inspector'}
@@ -2927,7 +2955,7 @@
             <div class="card-section">
               <div class="card-section-header">
                 <h4>{t.recruitment.archers}</h4>
-                <span class="current-value">{t.recruitment.current} {countUnits(data, selectedCampaign, selectedIsland, ARCHER_PREFABS) ?? 0}</span>
+                <span class="current-value">{t.recruitment.current} {countUnits(data, selectedCampaign, selectedIsland, ARCHER_PREFABS, targetMode, selectedChallenge) ?? 0}</span>
               </div>
               <div class="form-row wrap">
                 <label>
@@ -2946,7 +2974,7 @@
             <div class="card-section">
               <div class="card-section-header">
                 <h4>{t.recruitment.workers}</h4>
-                <span class="current-value">{t.recruitment.current} {countUnits(data, selectedCampaign, selectedIsland, WORKER_PREFABS) ?? 0}</span>
+                <span class="current-value">{t.recruitment.current} {countUnits(data, selectedCampaign, selectedIsland, WORKER_PREFABS, targetMode, selectedChallenge) ?? 0}</span>
               </div>
               <div class="form-row wrap">
                 <label>
@@ -2965,7 +2993,7 @@
             <div class="card-section">
               <div class="card-section-header">
                 <h4>{t.recruitment.farmers}</h4>
-                <span class="current-value">{t.recruitment.current} {countUnits(data, selectedCampaign, selectedIsland, FARMER_PREFABS) ?? 0}</span>
+                <span class="current-value">{t.recruitment.current} {countUnits(data, selectedCampaign, selectedIsland, FARMER_PREFABS, targetMode, selectedChallenge) ?? 0}</span>
               </div>
               <div class="form-row wrap">
                 <label>
@@ -2984,7 +3012,7 @@
             <div class="card-section">
               <div class="card-section-header">
                 <h4>{t.recruitment.pikemen}</h4>
-                <span class="current-value">{t.recruitment.current} {countUnits(data, selectedCampaign, selectedIsland, PIKEMAN_PREFABS) ?? 0}</span>
+                <span class="current-value">{t.recruitment.current} {countUnits(data, selectedCampaign, selectedIsland, PIKEMAN_PREFABS, targetMode, selectedChallenge) ?? 0}</span>
               </div>
               <div class="form-row wrap">
                 <label>
