@@ -120,6 +120,10 @@ const WARHORSE_RANGE: [FloatTarget; 4] =
     targets(RESOURCES_ASSETS, [58179816, 58288104, 58169272, 58169160]);
 const WARHORSE_DURATION: [FloatTarget; 1] = targets(RESOURCES_ASSETS, [55809144]);
 const ARCHER_NAMES: [&str; 3] = ["Archer_norselands", "Archer_Soldier_norselands", "Archer"];
+const ARCHER_WALK_SPEED: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, ARCHER_NAMES, 140);
+const ARCHER_RUN_SPEED: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, ARCHER_NAMES, 144);
 const ARCHER_SHOOT_PREP: [ComponentFloatTarget; 3] =
     component_targets(RESOURCES_ASSETS, ARCHER_NAMES, 72);
 const ARCHER_SHOOT_COOLDOWN: [ComponentFloatTarget; 3] =
@@ -278,6 +282,8 @@ struct AssetSettings {
     warhorse_plague_cooldown: f32,
     warhorse_buff_duration: f32,
     warhorse_buff_range: f32,
+    archer_walk_speed: f32,
+    archer_run_speed: f32,
     archer_shoot_prep_time: f32,
     archer_shoot_cooldown_time: f32,
     archer_shoot_cooldown_with_knight_time: f32,
@@ -1325,6 +1331,18 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
         warhorse_plague_cooldown: consistent_value(&resources, &shared, &WARHORSE_PLAGUE_COOLDOWN)?,
         warhorse_buff_duration: consistent_value(&resources, &shared, &WARHORSE_DURATION)?,
         warhorse_buff_range: consistent_value(&resources, &shared, &WARHORSE_RANGE)?,
+        archer_walk_speed: consistent_component_value(
+            &resources,
+            &shared,
+            archer_script_path,
+            &ARCHER_WALK_SPEED,
+        )?,
+        archer_run_speed: consistent_component_value(
+            &resources,
+            &shared,
+            archer_script_path,
+            &ARCHER_RUN_SPEED,
+        )?,
         archer_shoot_prep_time: consistent_component_value(
             &resources,
             &shared,
@@ -1548,6 +1566,8 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
         settings.warhorse_plague_cooldown,
         settings.warhorse_buff_duration,
         settings.warhorse_buff_range,
+        settings.archer_walk_speed,
+        settings.archer_run_speed,
         settings.archer_shoot_prep_time,
         settings.archer_shoot_cooldown_time,
         settings.archer_shoot_cooldown_with_knight_time,
@@ -1732,6 +1752,20 @@ fn apply_game_assets(
         &mut shared,
         &WARHORSE_RANGE,
         settings.warhorse_buff_range,
+    )?;
+    write_component_targets(
+        &mut resources,
+        &mut shared,
+        archer_script_path,
+        &ARCHER_WALK_SPEED,
+        settings.archer_walk_speed,
+    )?;
+    write_component_targets(
+        &mut resources,
+        &mut shared,
+        archer_script_path,
+        &ARCHER_RUN_SPEED,
+        settings.archer_run_speed,
     )?;
     write_component_targets(
         &mut resources,
@@ -2081,6 +2115,8 @@ mod tests {
             ("SpitSteedAbility", LIZARD_SKILL_COST.as_slice()),
             ("BuffUnitsSteedAbility", WARHORSE_SKILL_COST.as_slice()),
             ("Archer", ARCHER_SHOOT_PREP.as_slice()),
+            ("Archer", ARCHER_WALK_SPEED.as_slice()),
+            ("Archer", ARCHER_RUN_SPEED.as_slice()),
             ("Worker", BUILDER_WALK_SPEED.as_slice()),
         ] {
             let script =
@@ -2120,6 +2156,44 @@ mod tests {
                 .expect("Transform float")
                 .is_finite());
         }
+        let archer = find_mono_script_path(&global_managers, "Archer").expect("Archer script");
+        let original_prep =
+            consistent_component_value(&resources, &shared, archer, &ARCHER_SHOOT_PREP)
+                .expect("Archer shoot preparation");
+        let mut changed_archer_resources = resources.clone();
+        let mut changed_archer_shared = shared.clone();
+        for targets in [&ARCHER_WALK_SPEED[..], &ARCHER_RUN_SPEED[..]] {
+            let original = consistent_component_value(&resources, &shared, archer, targets)
+                .expect("Archer movement speed");
+            write_component_targets(
+                &mut changed_archer_resources,
+                &mut changed_archer_shared,
+                archer,
+                targets,
+                original + 1.0,
+            )
+            .expect("write Archer movement speed in memory");
+            assert_eq!(
+                consistent_component_value(
+                    &changed_archer_resources,
+                    &changed_archer_shared,
+                    archer,
+                    targets,
+                )
+                .expect("read changed Archer movement speed"),
+                original + 1.0
+            );
+        }
+        assert_eq!(
+            consistent_component_value(
+                &changed_archer_resources,
+                &changed_archer_shared,
+                archer,
+                &ARCHER_SHOOT_PREP,
+            )
+            .expect("unchanged Archer shoot preparation"),
+            original_prep
+        );
         let damageable =
             find_mono_script_path(&global_managers, "Damageable").expect("Damageable script");
         let mut changed_resources = resources.clone();

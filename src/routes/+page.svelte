@@ -64,6 +64,8 @@
     warhorsePlagueCooldown: number;
     warhorseBuffDuration: number;
     warhorseBuffRange: number;
+    archerWalkSpeed: number;
+    archerRunSpeed: number;
     archerShootPrepTime: number;
     archerShootCooldownTime: number;
     archerShootCooldownWithKnightTime: number;
@@ -1465,6 +1467,8 @@
 
             <section class="card asset-card">
               <h2>Archer</h2>
+              <label>Walk speed<input type="number" min="0" step="0.05" value={assetSettings.archerWalkSpeed} oninput={(e) => updateAssetNumber('archerWalkSpeed', e)} /></label>
+              <label>Run speed<input type="number" min="0" step="0.05" value={assetSettings.archerRunSpeed} oninput={(e) => updateAssetNumber('archerRunSpeed', e)} /></label>
               <label>Shoot preparation (seconds)<input type="number" min="0" step="0.05" value={assetSettings.archerShootPrepTime} oninput={(e) => updateAssetNumber('archerShootPrepTime', e)} /></label>
               <label>Normal cooldown (seconds)<input type="number" min="0" step="0.05" value={assetSettings.archerShootCooldownTime} oninput={(e) => updateAssetNumber('archerShootCooldownTime', e)} /></label>
               <label>Knight squad cooldown (seconds)<input type="number" min="0" step="0.05" value={assetSettings.archerShootCooldownWithKnightTime} oninput={(e) => updateAssetNumber('archerShootCooldownWithKnightTime', e)} /></label>
