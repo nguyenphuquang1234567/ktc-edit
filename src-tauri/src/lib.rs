@@ -1827,7 +1827,6 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
         settings.warhorse_skill_stamina_cost,
         settings.warhorse_cooldown,
         settings.warhorse_plague_cooldown,
-        settings.warhorse_buff_duration,
         settings.warhorse_buff_range,
         settings.archer_walk_speed,
         settings.archer_run_speed,
@@ -1848,6 +1847,11 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
         .any(|value| !value.is_finite() || *value < 0.0 || *value > 2000.0)
     {
         return Err("Every value must be between 0 and 2000".into());
+    }
+    if !settings.warhorse_buff_duration.is_finite()
+        || !(0.0..=1_000_000.0).contains(&settings.warhorse_buff_duration)
+    {
+        return Err("Warhorse buff duration must be between 0 and 1000000 seconds".into());
     }
     if settings.archer_interval_min > settings.archer_interval_max {
         return Err("Archer normal interval minimum cannot exceed its maximum".into());

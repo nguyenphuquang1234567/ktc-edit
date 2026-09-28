@@ -1636,7 +1636,7 @@
               <label>Run stamina rate<input type="number" step="0.01" value={assetSettings.warhorseRunStaminaRate} oninput={(e) => updateAssetNumber('warhorseRunStaminaRate', e)} /></label>
               <label>Skill stamina cost<input type="number" step="0.01" value={assetSettings.warhorseSkillStaminaCost} oninput={(e) => updateAssetNumber('warhorseSkillStaminaCost', e)} /></label>
               <label>Skill cooldown (seconds)<input type="number" step="0.1" value={assetSettings.warhorseCooldown} oninput={(e) => updateAssetNumber('warhorseCooldown', e)} /></label>
-              <label>Buff duration (seconds)<input type="number" step="0.1" value={assetSettings.warhorseBuffDuration} oninput={(e) => updateAssetNumber('warhorseBuffDuration', e)} /></label>
+              <label>Buff duration (seconds)<input type="number" min="0" max="1000000" step="0.1" value={assetSettings.warhorseBuffDuration} oninput={(e) => updateAssetNumber('warhorseBuffDuration', e)} /></label>
               <label>Buff range<input type="number" step="0.1" value={assetSettings.warhorseBuffRange} oninput={(e) => updateAssetNumber('warhorseBuffRange', e)} /></label>
               <p class="muted">Skill stamina cost and buff range also apply to Warhorse Plague.</p>
               {#if warhorseColliderLimit !== null}
