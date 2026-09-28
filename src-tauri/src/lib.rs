@@ -106,6 +106,11 @@ const WARHORSE_RUN: [ComponentFloatTarget; 2] =
     component_targets(RESOURCES_ASSETS, WARHORSE_NAMES, 196);
 const WARHORSE_RUN_STAMINA: [ComponentFloatTarget; 2] =
     component_targets(RESOURCES_ASSETS, WARHORSE_NAMES, 208);
+const WARHORSE_PLAGUE_NAMES: [&str; 2] = ["Warhorse Plague P1", "Warhorse Plague P2"];
+const WARHORSE_PLAGUE_RUN: [ComponentFloatTarget; 2] =
+    component_targets(RESOURCES_ASSETS, WARHORSE_PLAGUE_NAMES, 196);
+const WARHORSE_PLAGUE_RUN_STAMINA: [ComponentFloatTarget; 2] =
+    component_targets(RESOURCES_ASSETS, WARHORSE_PLAGUE_NAMES, 208);
 const WARHORSE_SKILL_NAMES: [&str; 4] = [
     "Warhorse P1",
     "Warhorse P2",
@@ -277,6 +282,8 @@ struct AssetSettings {
     horse_run_stamina_rate: f32,
     warhorse_run_speed: f32,
     warhorse_run_stamina_rate: f32,
+    warhorse_plague_run_speed: f32,
+    warhorse_plague_run_stamina_rate: f32,
     warhorse_skill_stamina_cost: f32,
     warhorse_cooldown: f32,
     warhorse_plague_cooldown: f32,
@@ -1321,6 +1328,18 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
             steed_script_path,
             &WARHORSE_RUN_STAMINA,
         )?,
+        warhorse_plague_run_speed: consistent_component_value(
+            &resources,
+            &shared,
+            steed_script_path,
+            &WARHORSE_PLAGUE_RUN,
+        )?,
+        warhorse_plague_run_stamina_rate: consistent_component_value(
+            &resources,
+            &shared,
+            steed_script_path,
+            &WARHORSE_PLAGUE_RUN_STAMINA,
+        )?,
         warhorse_skill_stamina_cost: consistent_component_value(
             &resources,
             &shared,
@@ -1561,6 +1580,8 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
         settings.horse_run_stamina_rate,
         settings.warhorse_run_speed,
         settings.warhorse_run_stamina_rate,
+        settings.warhorse_plague_run_speed,
+        settings.warhorse_plague_run_stamina_rate,
         settings.warhorse_skill_stamina_cost,
         settings.warhorse_cooldown,
         settings.warhorse_plague_cooldown,
@@ -1721,6 +1742,20 @@ fn apply_game_assets(
         steed_script_path,
         &WARHORSE_RUN_STAMINA,
         settings.warhorse_run_stamina_rate,
+    )?;
+    write_component_targets(
+        &mut resources,
+        &mut shared,
+        steed_script_path,
+        &WARHORSE_PLAGUE_RUN,
+        settings.warhorse_plague_run_speed,
+    )?;
+    write_component_targets(
+        &mut resources,
+        &mut shared,
+        steed_script_path,
+        &WARHORSE_PLAGUE_RUN_STAMINA,
+        settings.warhorse_plague_run_stamina_rate,
     )?;
     write_component_targets(
         &mut resources,
@@ -2097,6 +2132,8 @@ mod tests {
             .chain(LIZARD_RUN.iter())
             .chain(HORSE_RUN.iter())
             .chain(WARHORSE_RUN.iter())
+            .chain(WARHORSE_PLAGUE_RUN.iter())
+            .chain(WARHORSE_PLAGUE_RUN_STAMINA.iter())
         {
             let bytes = if target.file == RESOURCES_ASSETS {
                 &resources
@@ -2108,6 +2145,43 @@ mod tests {
                     .expect("dynamic Steed field");
             assert!(read_float(bytes, offset).expect("Steed float").is_finite());
         }
+        let regular_warhorse_run =
+            consistent_component_value(&resources, &shared, script, &WARHORSE_RUN)
+                .expect("regular Warhorse run speed");
+        let mut changed_plague_resources = resources.clone();
+        let mut changed_plague_shared = shared.clone();
+        for targets in [&WARHORSE_PLAGUE_RUN[..], &WARHORSE_PLAGUE_RUN_STAMINA[..]] {
+            let original = consistent_component_value(&resources, &shared, script, targets)
+                .expect("Plague Warhorse value");
+            write_component_targets(
+                &mut changed_plague_resources,
+                &mut changed_plague_shared,
+                script,
+                targets,
+                original + 1.0,
+            )
+            .expect("write Plague Warhorse in memory");
+            assert_eq!(
+                consistent_component_value(
+                    &changed_plague_resources,
+                    &changed_plague_shared,
+                    script,
+                    targets,
+                )
+                .expect("read changed Plague Warhorse value"),
+                original + 1.0
+            );
+        }
+        assert_eq!(
+            consistent_component_value(
+                &changed_plague_resources,
+                &changed_plague_shared,
+                script,
+                &WARHORSE_RUN,
+            )
+            .expect("unchanged regular Warhorse run speed"),
+            regular_warhorse_run
+        );
         for (class_name, targets) in [
             ("PushAttackSteedAbility", GRIFFIN_SKILL_COST.as_slice()),
             ("PushablePusher", GRIFFIN_PUSH_WIDTH.as_slice()),

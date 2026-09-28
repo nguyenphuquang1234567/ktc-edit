@@ -27,7 +27,11 @@ export interface Translations {
   context: {
     title: string;
     description: string;
+    mode: string;
+    modeCampaign: string;
+    modeChallenge: string;
     campaign: string;
+    challenge: string;
     island: string;
   };
   tabs: {
@@ -215,8 +219,12 @@ const translations: Record<Language, Translations> = {
     },
     context: {
       title: 'Context',
-      description: 'Select the campaign and island to edit.',
+      description: 'Select the campaign, challenge, and island to edit.',
+      mode: 'Mode',
+      modeCampaign: 'Campaign Mode',
+      modeChallenge: 'Challenge Mode',
       campaign: 'Campaign',
+      challenge: 'Challenge Island',
       island: 'Island',
     },
     tabs: {

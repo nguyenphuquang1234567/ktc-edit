@@ -2,10 +2,12 @@ import type { JSONValue } from "$lib/components/FieldEditor.svelte";
 
 type MutableJSONObject = Record<string, any>;
 
-interface SelectionOptions {
+export interface SelectionOptions {
   campaignIndex: number;
   islandIndex: number;
   playerIndex: number;
+  mode?: "campaign" | "challenge";
+  challengeIndex?: number;
 }
 
 export interface CoinsOptions extends SelectionOptions {
@@ -311,7 +313,34 @@ function nextNumericValue(objects: MutableJSONObject[], key: string, fallback: n
 
 export function setPlayerCoins(doc: JSONValue, options: CoinsOptions): JSONValue {
   const root = cloneJson(doc);
-  const { campaignIndex, islandIndex, playerIndex, coins } = options;
+  const { campaignIndex, islandIndex, playerIndex, coins, mode, challengeIndex } = options;
+
+  if (mode === "challenge") {
+    const rootObj = toObject(root, "Invalid save data");
+    const challenges = toArray(rootObj.challenges, "The save contains no challenges");
+    const chIdx = challengeIndex ?? 0;
+    const challenge = challenges[chIdx];
+    if (!challenge) {
+      throw new Error("Challenge not found");
+    }
+    const chObj = toObject(challenge, "Invalid challenge");
+    const islands = chObj._islands ? toArray(chObj._islands, "No islands in challenge") : [];
+    const island = islands[0];
+    if (island) {
+      const islandObj = toObject(island, "Invalid island data");
+      if (Array.isArray(islandObj.objects)) {
+        const objects = islandObj.objects as MutableJSONObject[];
+        const player = findPlayerObject(objects, playerIndex);
+        if (player) {
+          const components = Array.isArray(player.componentData2)
+            ? (player.componentData2 as MutableJSONObject[])
+            : [];
+          updateWallet(components, coins);
+        }
+      }
+    }
+    return root;
+  }
 
   const campaigns = toArray(toObject(root, "Invalid save data").campaigns, "The save contains no campaigns");
   const campaign = campaigns[campaignIndex];
@@ -365,7 +394,44 @@ export function setPlayerCoins(doc: JSONValue, options: CoinsOptions): JSONValue
 
 export function setPlayerGems(doc: JSONValue, options: GemsOptions): JSONValue {
   const root = cloneJson(doc);
-  const { campaignIndex, islandIndex, playerIndex, gems } = options;
+  const { campaignIndex, islandIndex, playerIndex, gems, mode, challengeIndex } = options;
+
+  if (mode === "challenge") {
+    const rootObj = toObject(root, "Invalid save data");
+    const challenges = toArray(rootObj.challenges, "The save contains no challenges");
+    const chIdx = challengeIndex ?? 0;
+    const challenge = challenges[chIdx];
+    if (!challenge) {
+      throw new Error("Challenge not found");
+    }
+    const chObj = toObject(challenge, "Invalid challenge");
+    const islands = chObj._islands ? toArray(chObj._islands, "No islands in challenge") : [];
+    const island = islands[0];
+    if (island) {
+      const islandObj = toObject(island, "Invalid island data");
+      if (Array.isArray(islandObj.objects)) {
+        const objects = islandObj.objects as MutableJSONObject[];
+        const player = findPlayerObject(objects, playerIndex);
+        if (player && Array.isArray(player.componentData2)) {
+          for (const component of player.componentData2 as MutableJSONObject[]) {
+            if (component.name === "Wallet" && typeof component.data === "string") {
+              try {
+                const payload = JSON.parse(component.data) as MutableJSONObject;
+                payload.usesCurrencySystem = true;
+                if (typeof payload.currency === "object" && payload.currency !== null) {
+                  (payload.currency as MutableJSONObject).Gems = gems;
+                }
+                component.data = JSON.stringify(payload);
+              } catch (error) {
+                console.warn("Unable to update wallet gems", error);
+              }
+            }
+          }
+        }
+      }
+    }
+    return root;
+  }
 
   const campaigns = toArray(toObject(root, "Invalid save data").campaigns, "The save contains no campaigns");
   const campaign = campaigns[campaignIndex];
@@ -1475,8 +1541,37 @@ export function getPlayerCoins(doc: JSONValue | null, options: CoinsQueryOptions
   }
 
   try {
-    const { campaignIndex, islandIndex, playerIndex } = options;
+    const { campaignIndex, islandIndex, playerIndex, mode, challengeIndex } = options;
     const root = toObject(doc, "Invalid save data");
+
+    if (mode === "challenge") {
+      const challenges = Array.isArray(root.challenges) ? (root.challenges as MutableJSONObject[]) : null;
+      if (!challenges) return null;
+      const chIdx = challengeIndex ?? 0;
+      const challenge = challenges[chIdx];
+      if (!challenge) return null;
+      const chObj = toObject(challenge, "Invalid challenge");
+      const islands = chObj._islands ? toArray(chObj._islands, "Invalid islands data") : [];
+      const island = islands[0];
+      if (island) {
+        const islandObj = toObject(island, "Invalid island data");
+        if (Array.isArray(islandObj.objects)) {
+          const objects = islandObj.objects as MutableJSONObject[];
+          const player = findPlayerObject(objects, playerIndex);
+          if (player) {
+            const components = Array.isArray(player.componentData2)
+              ? (player.componentData2 as MutableJSONObject[])
+              : [];
+            const coins = extractWalletCoins(components);
+            if (typeof coins === "number") {
+              return coins;
+            }
+          }
+        }
+      }
+      return null;
+    }
+
     const campaigns = Array.isArray(root.campaigns) ? (root.campaigns as MutableJSONObject[]) : null;
     if (!campaigns) {
       return null;
@@ -1547,8 +1642,45 @@ export function getPlayerGems(doc: JSONValue | null, options: GemsQueryOptions):
   }
 
   try {
-    const { campaignIndex, islandIndex, playerIndex } = options;
+    const { campaignIndex, islandIndex, playerIndex, mode, challengeIndex } = options;
     const root = toObject(doc, "Invalid save data");
+
+    if (mode === "challenge") {
+      const challenges = Array.isArray(root.challenges) ? (root.challenges as MutableJSONObject[]) : null;
+      if (!challenges) return null;
+      const chIdx = challengeIndex ?? 0;
+      const challenge = challenges[chIdx];
+      if (!challenge) return null;
+      const chObj = toObject(challenge, "Invalid challenge");
+      const islands = chObj._islands ? toArray(chObj._islands, "Invalid islands data") : [];
+      const island = islands[0];
+      if (island) {
+        const islandObj = toObject(island, "Invalid island data");
+        if (Array.isArray(islandObj.objects)) {
+          const objects = islandObj.objects as MutableJSONObject[];
+          const player = findPlayerObject(objects, playerIndex);
+          if (player && Array.isArray(player.componentData2)) {
+            for (const component of player.componentData2 as MutableJSONObject[]) {
+              if (component.name === "Wallet" && typeof component.data === "string") {
+                try {
+                  const payload = JSON.parse(component.data) as MutableJSONObject;
+                  if (typeof payload.currency === "object" && payload.currency !== null) {
+                    const gems = (payload.currency as MutableJSONObject).Gems;
+                    if (typeof gems === "number") {
+                      return gems;
+                    }
+                  }
+                } catch (error) {
+                  console.warn("Unable to read wallet gems", error);
+                }
+              }
+            }
+          }
+        }
+      }
+      return null;
+    }
+
     const campaigns = Array.isArray(root.campaigns) ? (root.campaigns as MutableJSONObject[]) : null;
     if (!campaigns) {
       return null;

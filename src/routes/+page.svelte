@@ -59,6 +59,8 @@
     horseRunStaminaRate: number;
     warhorseRunSpeed: number;
     warhorseRunStaminaRate: number;
+    warhorsePlagueRunSpeed: number;
+    warhorsePlagueRunStaminaRate: number;
     warhorseSkillStaminaCost: number;
     warhorseCooldown: number;
     warhorsePlagueCooldown: number;
@@ -109,7 +111,8 @@
   let assetError = $state<string | null>(null);
   let assetBackups = $state<string[]>([]);
   let resetSaveWalls = $state(true);
-  let selectedKey = $state<string | null>(null);
+  let targetMode = $state<"campaign" | "challenge">("campaign");
+  let selectedChallenge = $state(1); // Default to Plague Island if available
   let selectedCampaign = $state(0);
   let selectedIsland = $state(0);
   let coinsPlayerIndex = $state(0);
@@ -387,6 +390,42 @@
     });
   }
 
+  interface ChallengeSummary {
+    index: number;
+    challengeId: number;
+    label: string;
+  }
+
+  function computeChallengeSummaries(value: JSONValue | null): ChallengeSummary[] {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return [];
+    }
+
+    const challenges = (value as Record<string, JSONValue>).challenges;
+    if (!Array.isArray(challenges)) {
+      return [];
+    }
+
+    return challenges.map((entry, index) => {
+      const record = entry && typeof entry === "object" && !Array.isArray(entry)
+        ? (entry as Record<string, JSONValue>)
+        : {};
+      const cid = typeof record.challengeId === "number" ? record.challengeId : index;
+      let name = `Challenge ${index + 1}`;
+      if (cid === 2) name = "Plague Island";
+      else if (cid === 0) name = "Skull Island";
+      else if (cid === 1) name = "Plague Island";
+      else if (cid === 3) name = "Dire Island";
+      else if (cid === 4) name = "Trade Routes";
+      else if (cid === 9) name = "Lost Islands / Daily";
+      return {
+        index,
+        challengeId: cid,
+        label: name,
+      } satisfies ChallengeSummary;
+    });
+  }
+
   function computeIslandCount(value: JSONValue | null, campaignIndex: number): number {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       return 0;
@@ -439,14 +478,6 @@
       filePath = response.path;
       selectedCampaign = 0;
       selectedIsland = 0;
-      selectedKey = (() => {
-        if (!response.data || typeof response.data !== "object" || Array.isArray(response.data)) {
-          return null;
-        }
-
-        const keys = Object.keys(response.data as Record<string, JSONValue>);
-        return keys.length > 0 ? keys[0] : null;
-      })();
       showSuccess("global-v35 loaded");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -535,11 +566,16 @@
   }
 
   let campaigns = $derived(computeCampaignSummaries(data));
+  let challenges = $derived(computeChallengeSummaries(data));
   let islands = $derived(computeIslandCount(data, selectedCampaign));
 
   $effect(() => {
     if (selectedCampaign >= campaigns.length) {
       selectedCampaign = 0;
+    }
+
+    if (selectedChallenge >= challenges.length) {
+      selectedChallenge = 0;
     }
 
     if (selectedIsland >= islands) {
@@ -558,7 +594,7 @@
       return;
     }
 
-    const signature = `${selectedCampaign}|${selectedIsland}|${coinsPlayerIndex}`;
+    const signature = `${targetMode}|${selectedCampaign}|${selectedChallenge}|${selectedIsland}|${coinsPlayerIndex}`;
     const selectionChanged = coinsSelectionSignature !== signature;
     const dataChanged = lastCoinsData !== data;
     if (!selectionChanged && !dataChanged) {
@@ -569,6 +605,8 @@
     lastCoinsData = data;
 
     const coinsValue = getPlayerCoins(data, {
+      mode: targetMode,
+      challengeIndex: selectedChallenge,
       campaignIndex: selectedCampaign,
       islandIndex: selectedIsland,
       playerIndex: coinsPlayerIndex,
@@ -586,7 +624,7 @@
       return;
     }
 
-    const signature = `${selectedCampaign}|${selectedIsland}|${gemsPlayerIndex}`;
+    const signature = `${targetMode}|${selectedCampaign}|${selectedChallenge}|${selectedIsland}|${gemsPlayerIndex}`;
     const selectionChanged = gemsSelectionSignature !== signature;
     const dataChanged = lastGemsData !== data;
     if (!selectionChanged && !dataChanged) {
@@ -597,6 +635,8 @@
     lastGemsData = data;
 
     const gemsValue = getPlayerGems(data, {
+      mode: targetMode,
+      challengeIndex: selectedChallenge,
       campaignIndex: selectedCampaign,
       islandIndex: selectedIsland,
       playerIndex: gemsPlayerIndex,
@@ -623,11 +663,15 @@
     try {
       const current = requireData();
       const beforeCoins = getPlayerCoins(current, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: coinsPlayerIndex,
       });
       console.info("Coin update requested", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         player: coinsPlayerIndex,
@@ -635,6 +679,8 @@
         target: coinsAmount,
       });
       const updated = setPlayerCoins(current, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: coinsPlayerIndex,
@@ -643,6 +689,8 @@
       data = updated;
       backupPath = null;
       const afterCoins = getPlayerCoins(updated, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: coinsPlayerIndex,
@@ -651,6 +699,8 @@
         coinsAmount = afterCoins;
       }
       console.info("Coins updated", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         player: coinsPlayerIndex,
@@ -669,11 +719,15 @@
     try {
       const current = requireData();
       const beforeGems = getPlayerGems(current, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: gemsPlayerIndex,
       });
       console.info("Gem update requested", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         player: gemsPlayerIndex,
@@ -681,6 +735,8 @@
         target: gemsAmount,
       });
       const updated = setPlayerGems(current, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: gemsPlayerIndex,
@@ -689,6 +745,8 @@
       data = updated;
       backupPath = null;
       const afterGems = getPlayerGems(updated, {
+        mode: targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         playerIndex: gemsPlayerIndex,
@@ -698,6 +756,8 @@
       }
 
       console.info("Gems updated", {
+        mode: targetMode,
+        challenge: selectedChallenge,
         campaign: selectedCampaign,
         island: selectedIsland,
         player: gemsPlayerIndex,
@@ -1460,9 +1520,17 @@
               <label>Run stamina rate<input type="number" step="0.01" value={assetSettings.warhorseRunStaminaRate} oninput={(e) => updateAssetNumber('warhorseRunStaminaRate', e)} /></label>
               <label>Skill stamina cost<input type="number" step="0.01" value={assetSettings.warhorseSkillStaminaCost} oninput={(e) => updateAssetNumber('warhorseSkillStaminaCost', e)} /></label>
               <label>Skill cooldown (seconds)<input type="number" step="0.1" value={assetSettings.warhorseCooldown} oninput={(e) => updateAssetNumber('warhorseCooldown', e)} /></label>
-              <label>Plague cooldown (seconds)<input type="number" step="0.1" value={assetSettings.warhorsePlagueCooldown} oninput={(e) => updateAssetNumber('warhorsePlagueCooldown', e)} /></label>
               <label>Buff duration (seconds)<input type="number" step="0.1" value={assetSettings.warhorseBuffDuration} oninput={(e) => updateAssetNumber('warhorseBuffDuration', e)} /></label>
               <label>Buff range<input type="number" step="0.1" value={assetSettings.warhorseBuffRange} oninput={(e) => updateAssetNumber('warhorseBuffRange', e)} /></label>
+              <p class="muted">Skill stamina cost and buff range also apply to Warhorse Plague.</p>
+            </section>
+
+            <section class="card asset-card">
+              <h2>Warhorse Plague</h2>
+              <label>Run speed<input type="number" min="0" step="0.1" value={assetSettings.warhorsePlagueRunSpeed} oninput={(e) => updateAssetNumber('warhorsePlagueRunSpeed', e)} /></label>
+              <label>Run stamina rate<input type="number" step="0.01" value={assetSettings.warhorsePlagueRunStaminaRate} oninput={(e) => updateAssetNumber('warhorsePlagueRunStaminaRate', e)} /></label>
+              <label>Skill cooldown (seconds)<input type="number" step="0.1" value={assetSettings.warhorsePlagueCooldown} oninput={(e) => updateAssetNumber('warhorsePlagueCooldown', e)} /></label>
+              <p class="muted">Applied to Warhorse Plague P1 and P2 only.</p>
             </section>
 
             <section class="card asset-card">
@@ -1641,27 +1709,57 @@
           <p class="muted">{t.context.description}</p>
           <div class="form-row wrap">
             <label>
-              {t.context.campaign}
+              {t.context.mode}
               <select
-                value={selectedCampaign}
-                onchange={(event) => (selectedCampaign = Number((event.currentTarget as HTMLSelectElement).value))}
+                value={targetMode}
+                onchange={(event) => {
+                  targetMode = (event.currentTarget as HTMLSelectElement).value as "campaign" | "challenge";
+                  if (targetMode === "challenge" && activeTab !== "resources") {
+                    activeTab = "resources";
+                  }
+                }}
               >
-                {#each campaigns as campaign, index}
-                  <option value={index}>{campaign.label}</option>
-                {/each}
+                <option value="campaign">{t.context.modeCampaign}</option>
+                <option value="challenge">{t.context.modeChallenge}</option>
               </select>
             </label>
-            <label>
-              {t.context.island}
-              <select
-                value={selectedIsland}
-                onchange={(event) => (selectedIsland = Number((event.currentTarget as HTMLSelectElement).value))}
-              >
-                {#each Array.from({ length: Math.max(0, islands) }) as _, index}
-                  <option value={index}>{t.context.island} {index + 1}</option>
-                {/each}
-              </select>
-            </label>
+
+            {#if targetMode === "campaign"}
+              <label>
+                {t.context.campaign}
+                <select
+                  value={selectedCampaign}
+                  onchange={(event) => (selectedCampaign = Number((event.currentTarget as HTMLSelectElement).value))}
+                >
+                  {#each campaigns as campaign, index}
+                    <option value={index}>{campaign.label}</option>
+                  {/each}
+                </select>
+              </label>
+              <label>
+                {t.context.island}
+                <select
+                  value={selectedIsland}
+                  onchange={(event) => (selectedIsland = Number((event.currentTarget as HTMLSelectElement).value))}
+                >
+                  {#each Array.from({ length: Math.max(0, islands) }) as _, index}
+                    <option value={index}>{t.context.island} {index + 1}</option>
+                  {/each}
+                </select>
+              </label>
+            {:else}
+              <label>
+                {t.context.challenge}
+                <select
+                  value={selectedChallenge}
+                  onchange={(event) => (selectedChallenge = Number((event.currentTarget as HTMLSelectElement).value))}
+                >
+                  {#each challenges as challenge, index}
+                    <option value={index}>{challenge.label}</option>
+                  {/each}
+                </select>
+              </label>
+            {/if}
           </div>
         </section>
 
@@ -2371,6 +2469,8 @@
                 <span class="current-value">
                   {t.resources.current} {(() => {
                     const value = getPlayerCoins(data, {
+                      mode: targetMode,
+                      challengeIndex: selectedChallenge,
                       campaignIndex: selectedCampaign,
                       islandIndex: selectedIsland,
                       playerIndex: coinsPlayerIndex
@@ -2409,6 +2509,8 @@
                 <span class="current-value">
                   {t.resources.current} {(() => {
                     const value = getPlayerGems(data, {
+                      mode: targetMode,
+                      challengeIndex: selectedChallenge,
                       campaignIndex: selectedCampaign,
                       islandIndex: selectedIsland,
                       playerIndex: gemsPlayerIndex
