@@ -173,6 +173,8 @@ const WALL5_NORSELANDS_HP: [ComponentFloatTarget; 2] =
 const KNIGHT_WALLET_NAMES: [&str; 3] = ["Knight", "Knight_norselands", "Knight_greece"];
 const KNIGHT_WALLET_CAPACITY: [ComponentFloatTarget; 3] =
     component_targets(RESOURCES_ASSETS, KNIGHT_WALLET_NAMES, 268);
+const PLAYER_WALLET_CAPACITY: [ComponentFloatTarget; 1] =
+    component_targets(RESOURCES_ASSETS, ["Player"], 268);
 const KNIGHT_WALLET_PAY_TAXES_ABOVE: [ComponentFloatTarget; 3] =
     component_targets(RESOURCES_ASSETS, KNIGHT_WALLET_NAMES, 40);
 const BAG_SCALE: [ComponentFloatTarget; 12] = [
@@ -311,6 +313,7 @@ struct AssetSettings {
     wall5_standard_hit_points: i32,
     wall5_norselands_hit_points: i32,
     knight_wallet_capacity: i32,
+    player_wallet_capacity: i32,
     knight_wallet_pay_taxes_above: i32,
     bag_scale: f32,
 }
@@ -1668,6 +1671,11 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
             wallet_script_path,
             &KNIGHT_WALLET_CAPACITY,
         )?,
+        player_wallet_capacity: consistent_component_int_value(
+            &resources,
+            wallet_script_path,
+            &PLAYER_WALLET_CAPACITY,
+        )?,
         knight_wallet_pay_taxes_above: consistent_component_int_value(
             &resources,
             wallet_script_path,
@@ -1797,6 +1805,9 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
     {
         return Err("Knight Wallet values must be whole numbers between 0 and 1,000,000; capacity must be at least 1".into());
     }
+    if !(1..=1_000_000).contains(&settings.player_wallet_capacity) {
+        return Err("Player Wallet capacity must be a whole number between 1 and 1,000,000".into());
+    }
     let values = [
         settings.griffin_run_speed,
         settings.griffin_forest_multiplier,
@@ -1834,9 +1845,9 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
     ];
     if values
         .iter()
-        .any(|value| !value.is_finite() || *value < 0.0 || *value > 1000.0)
+        .any(|value| !value.is_finite() || *value < 0.0 || *value > 2000.0)
     {
-        return Err("Every value must be between 0 and 1000".into());
+        return Err("Every value must be between 0 and 2000".into());
     }
     if settings.archer_interval_min > settings.archer_interval_max {
         return Err("Archer normal interval minimum cannot exceed its maximum".into());
@@ -2120,6 +2131,12 @@ fn apply_game_assets(
         wallet_script_path,
         &KNIGHT_WALLET_CAPACITY,
         settings.knight_wallet_capacity,
+    )?;
+    write_component_int_targets(
+        &mut resources,
+        wallet_script_path,
+        &PLAYER_WALLET_CAPACITY,
+        settings.player_wallet_capacity,
     )?;
     write_component_int_targets(
         &mut resources,
@@ -2549,6 +2566,7 @@ mod tests {
             resolve_component_offset(&resources, wallet, "Squire", 268).expect("Squire Wallet");
         let squire_capacity = read_int(&resources, squire_wallet_offset).expect("Squire capacity");
         for targets in [
+            &PLAYER_WALLET_CAPACITY[..],
             &KNIGHT_WALLET_CAPACITY[..],
             &KNIGHT_WALLET_PAY_TAXES_ABOVE[..],
         ] {

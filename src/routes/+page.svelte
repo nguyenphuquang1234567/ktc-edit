@@ -81,6 +81,7 @@
     wall5StandardHitPoints: number;
     wall5NorselandsHitPoints: number;
     knightWalletCapacity: number;
+    playerWalletCapacity: number;
     knightWalletPayTaxesAbove: number;
     bagScale: number;
   }
@@ -1678,6 +1679,12 @@
               <label>Run speed<input type="number" min="0" step="0.05" value={assetSettings.builderRunSpeed} oninput={(e) => updateAssetNumber('builderRunSpeed', e)} /></label>
               <label>Work time (seconds)<input type="number" min="0" step="0.05" value={assetSettings.builderWorkTime} oninput={(e) => updateAssetNumber('builderWorkTime', e)} /></label>
               <p class="muted">Applied to regular and Norse Lands builders. Lower work time means faster building and chopping.</p>
+            </section>
+
+            <section class="card asset-card">
+              <h2>Player Wallet</h2>
+              <label>Total capacity<input type="number" min="1" max="1000000" step="1" value={assetSettings.playerWalletCapacity} oninput={(e) => updateAssetNumber('playerWalletCapacity', e)} /></label>
+              <p class="muted">Edits Wallet.TotalCapacity on the Player prefab in resources.assets. Current save and runtime state may affect when the change takes effect.</p>
             </section>
 
             <section class="card asset-card">
