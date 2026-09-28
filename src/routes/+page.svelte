@@ -1223,6 +1223,8 @@
     try {
       const current = requireData();
       const updated = upgradeSpecificWall(current, {
+        targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         wallId,
@@ -1242,6 +1244,8 @@
     try {
       const current = requireData();
       const updated = batchUpgradeWalls(current, {
+        targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         mode,
@@ -1261,6 +1265,8 @@
     try {
       const current = requireData();
       const updated = upgradeIslandCastle(current, {
+        targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         targetLevel,
@@ -1278,6 +1284,8 @@
     try {
       const current = requireData();
       const updated = upgradeSpecificTower(current, {
+        targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         towerId,
@@ -1296,6 +1304,8 @@
     try {
       const current = requireData();
       const updated = batchUpgradeTowers(current, {
+        targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         mode,
@@ -1314,6 +1324,8 @@
     try {
       const current = requireData();
       const updated = setTreeMark(current, {
+        targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         treeId,
@@ -1334,6 +1346,8 @@
       const minVal = Math.min(treeRangeMin, treeRangeMax);
       const maxVal = Math.max(treeRangeMin, treeRangeMax);
       const updated = setTreeMark(current, {
+        targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         islandIndex: selectedIsland,
         xMin: minVal,
@@ -1742,7 +1756,7 @@
                 value={targetMode}
                 onchange={(event) => {
                   targetMode = (event.currentTarget as HTMLSelectElement).value as "campaign" | "challenge";
-                  if (targetMode === "challenge" && activeTab !== "resources" && activeTab !== "recruitment") {
+                  if (targetMode === "challenge" && activeTab !== "resources" && activeTab !== "recruitment" && activeTab !== "inspector") {
                     activeTab = "resources";
                   }
                 }}
@@ -1792,16 +1806,14 @@
         </section>
 
         <div class="tabs">
-          {#if targetMode === "campaign"}
-            <button 
-              type="button"
-              class="tab"
-              class:active={activeTab === 'inspector'}
-              onclick={() => activeTab = 'inspector'}
-            >
-              🗺️ {t.tabs.inspector}
-            </button>
-          {/if}
+          <button 
+            type="button"
+            class="tab"
+            class:active={activeTab === 'inspector'}
+            onclick={() => activeTab = 'inspector'}
+          >
+            🗺️ {t.tabs.inspector}
+          </button>
           <button 
             type="button"
             class="tab"
