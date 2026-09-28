@@ -15,6 +15,13 @@ const SAVE_FILENAME: &str = "global-v35";
 const RESOURCES_ASSETS: &str = "resources.assets";
 const SHARED_ASSETS: &str = "sharedassets0.assets";
 const GLOBAL_MANAGERS_ASSETS: &str = "globalgamemanagers.assets";
+const GAME_ASSEMBLY: &str = "GameAssembly.dylib";
+// Instructions following the array-length MOVZ in BuffUnitsSteedAbility..cctor
+// for the verified Apple Silicon build. Refuse to patch if this context changes.
+const WARHORSE_COLLIDER_CONTEXT: [u8; 24] = [
+    0xbc, 0x77, 0xf1, 0x97, 0x68, 0x02, 0x40, 0xf9, 0x08, 0x5d, 0x40, 0xf9, 0x1f, 0x29, 0x00, 0xb9,
+    0x1f, 0xfd, 0x01, 0xa9, 0x00, 0xfd, 0x00, 0xa9,
+];
 const EXPECTED_RESOURCES_SIZE: u64 = 59_975_696;
 const EXPECTED_SHARED_SIZE: u64 = 59_876_160;
 
@@ -322,6 +329,230 @@ struct AssetApplyResponse {
     shared_assets_backup: String,
     settings: AssetSettings,
     save_cleared_walls: Option<usize>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ColliderLimitResponse {
+    limit: u16,
+    backup: Option<String>,
+}
+
+fn game_assembly_path(data_directory: &Path) -> Result<PathBuf, String> {
+    validate_asset_directory(data_directory)?;
+    let contents = data_directory
+        .parent()
+        .and_then(Path::parent)
+        .ok_or_else(|| "The Data folder is not inside a game bundle".to_string())?;
+    let path = contents.join("Frameworks").join(GAME_ASSEMBLY);
+    if !path.is_file() {
+        return Err(format!("Could not find {}", path.display()));
+    }
+    Ok(path)
+}
+
+fn collider_limit_instruction_offset(bytes: &[u8]) -> Result<usize, String> {
+    let mut matches = bytes
+        .windows(WARHORSE_COLLIDER_CONTEXT.len())
+        .enumerate()
+        .filter(|(_, window)| *window == WARHORSE_COLLIDER_CONTEXT)
+        .map(|(index, _)| index);
+    let context_offset = matches
+        .next()
+        .ok_or_else(|| "Unsupported GameAssembly.dylib: Warhorse code was not found".to_string())?;
+    if matches.next().is_some() || context_offset < 4 {
+        return Err("Unsupported GameAssembly.dylib: Warhorse code is ambiguous".into());
+    }
+    Ok(context_offset - 4)
+}
+
+fn read_collider_limit(bytes: &[u8]) -> Result<(usize, u16), String> {
+    let offset = collider_limit_instruction_offset(bytes)?;
+    let instruction = u32::from_le_bytes(
+        bytes[offset..offset + 4]
+            .try_into()
+            .map_err(|_| "Incomplete Warhorse instruction".to_string())?,
+    );
+    // ARM64 MOVZ W1, #imm16, without a shift.
+    if instruction & !0x001f_ffe0 != 0x5280_0001 {
+        return Err("Unsupported GameAssembly.dylib: unexpected Warhorse instruction".into());
+    }
+    Ok((offset, ((instruction >> 5) & 0xffff) as u16))
+}
+
+#[tauri::command]
+fn load_warhorse_collider_limit(data_directory: String) -> Result<ColliderLimitResponse, String> {
+    #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+    return Err(
+        "Warhorse collider limit editing currently supports Apple Silicon Macs only".into(),
+    );
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        let path = game_assembly_path(Path::new(&data_directory))?;
+        let bytes = fs::read(path).map_err(|err| err.to_string())?;
+        let (_, limit) = read_collider_limit(&bytes)?;
+        Ok(ColliderLimitResponse {
+            limit,
+            backup: None,
+        })
+    }
+}
+
+#[tauri::command]
+fn apply_warhorse_collider_limit(
+    data_directory: String,
+    limit: u16,
+) -> Result<ColliderLimitResponse, String> {
+    #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+    return Err(
+        "Warhorse collider limit editing currently supports Apple Silicon Macs only".into(),
+    );
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        use std::process::Command;
+        if !(1..=1000).contains(&limit) {
+            return Err("Collider limit must be between 1 and 1000".into());
+        }
+        if game_is_running() {
+            return Err("Close Kingdom Two Crowns before applying changes".into());
+        }
+        let path = game_assembly_path(Path::new(&data_directory))?;
+        let mut bytes = fs::read(&path).map_err(|err| err.to_string())?;
+        let (offset, current) = read_collider_limit(&bytes)?;
+        if current == limit {
+            return Ok(ColliderLimitResponse {
+                limit,
+                backup: None,
+            });
+        }
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|err| err.to_string())?
+            .as_nanos();
+        let backup = path.with_file_name(format!("{GAME_ASSEMBLY}.ktcedit.{timestamp}.bak"));
+        fs::copy(&path, &backup)
+            .map_err(|err| format!("Could not back up GameAssembly.dylib: {err}"))?;
+
+        let instruction = 0x5280_0001_u32 | (u32::from(limit) << 5);
+        bytes[offset..offset + 4].copy_from_slice(&instruction.to_le_bytes());
+        let temporary = path.with_file_name(format!("{GAME_ASSEMBLY}.ktcedit.{timestamp}.tmp"));
+        let result = (|| -> Result<(), String> {
+            fs::write(&temporary, &bytes).map_err(|err| err.to_string())?;
+            let permissions = fs::metadata(&path)
+                .map_err(|err| err.to_string())?
+                .permissions();
+            fs::set_permissions(&temporary, permissions).map_err(|err| err.to_string())?;
+            fs::rename(&temporary, &path).map_err(|err| err.to_string())?;
+            let sign = Command::new("codesign")
+                .args(["--force", "--sign", "-"])
+                .arg(&path)
+                .output()
+                .map_err(|err| format!("Could not run codesign: {err}"))?;
+            if !sign.status.success() {
+                return Err(format!(
+                    "Could not sign GameAssembly.dylib: {}",
+                    String::from_utf8_lossy(&sign.stderr)
+                ));
+            }
+            let verify = Command::new("codesign")
+                .args(["--verify", "--verbose=2"])
+                .arg(&path)
+                .output()
+                .map_err(|err| format!("Could not verify code signature: {err}"))?;
+            if !verify.status.success() {
+                return Err(format!(
+                    "GameAssembly.dylib signature verification failed: {}",
+                    String::from_utf8_lossy(&verify.stderr)
+                ));
+            }
+            let written = fs::read(&path).map_err(|err| err.to_string())?;
+            if read_collider_limit(&written)?.1 != limit {
+                return Err("Warhorse collider limit verification failed".into());
+            }
+            Ok(())
+        })();
+        let _ = fs::remove_file(&temporary);
+        if let Err(error) = result {
+            let restored = fs::copy(&backup, &path);
+            return Err(match restored {
+                Ok(_) => format!(
+                    "{error}. Original GameAssembly.dylib was restored from {}",
+                    backup.display()
+                ),
+                Err(restore_error) => format!(
+                    "{error}. Restore failed: {restore_error}. Backup: {}",
+                    backup.display()
+                ),
+            });
+        }
+        Ok(ColliderLimitResponse {
+            limit,
+            backup: Some(backup.to_string_lossy().to_string()),
+        })
+    }
+}
+
+#[tauri::command]
+fn restore_warhorse_collider_limit(
+    data_directory: String,
+    backup: String,
+) -> Result<ColliderLimitResponse, String> {
+    #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+    return Err(
+        "Warhorse collider limit editing currently supports Apple Silicon Macs only".into(),
+    );
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        use std::process::Command;
+        if game_is_running() {
+            return Err("Close Kingdom Two Crowns before restoring changes".into());
+        }
+        let path = game_assembly_path(Path::new(&data_directory))?;
+        let backup_path = PathBuf::from(backup);
+        let parent = path.parent().ok_or("Invalid GameAssembly.dylib path")?;
+        let backup_name = backup_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
+        if backup_path.parent() != Some(parent)
+            || !backup_name.starts_with("GameAssembly.dylib.ktcedit.")
+            || !backup_name.ends_with(".bak")
+        {
+            return Err("Invalid GameAssembly.dylib backup path".into());
+        }
+        let bytes = fs::read(&backup_path).map_err(|err| err.to_string())?;
+        let (_, limit) = read_collider_limit(&bytes)?;
+        let signature = Command::new("codesign")
+            .args(["--verify", "--verbose=2"])
+            .arg(&backup_path)
+            .output()
+            .map_err(|err| err.to_string())?;
+        if !signature.status.success() {
+            return Err("The selected GameAssembly.dylib backup has an invalid signature".into());
+        }
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|err| err.to_string())?
+            .as_nanos();
+        let safety = path.with_file_name(format!("{GAME_ASSEMBLY}.ktcedit.{timestamp}.bak"));
+        fs::copy(&path, &safety).map_err(|err| err.to_string())?;
+        fs::copy(&backup_path, &path).map_err(|err| err.to_string())?;
+        let restored = fs::read(&path).map_err(|err| err.to_string())?;
+        if read_collider_limit(&restored)?.1 != limit {
+            let _ = fs::copy(&safety, &path);
+            return Err(
+                "Restored Warhorse collider limit did not verify; previous file was restored"
+                    .into(),
+            );
+        }
+        Ok(ColliderLimitResponse {
+            limit,
+            backup: Some(safety.to_string_lossy().to_string()),
+        })
+    }
 }
 
 #[derive(Serialize)]
@@ -2013,6 +2244,37 @@ mod tests {
     use super::*;
     use flate2::{read::GzDecoder, write::GzEncoder, Compression};
     use serde_json::json;
+
+    #[test]
+    fn warhorse_collider_limit_decodes_and_encodes_arm64_movz() {
+        let mut bytes = vec![0; 8];
+        bytes.extend_from_slice(&0x5280_0281_u32.to_le_bytes()); // mov w1, #20
+        bytes.extend_from_slice(&WARHORSE_COLLIDER_CONTEXT);
+        let (offset, value) = read_collider_limit(&bytes).expect("decode original limit");
+        assert_eq!(value, 20);
+        bytes[offset..offset + 4].copy_from_slice(&(0x5280_0001_u32 | (100 << 5)).to_le_bytes());
+        assert_eq!(
+            read_collider_limit(&bytes).expect("decode new limit").1,
+            100
+        );
+    }
+
+    #[test]
+    fn warhorse_collider_limit_rejects_unrecognized_code() {
+        assert!(read_collider_limit(&[0; 64]).is_err());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn reads_installed_warhorse_collider_limit_when_available() {
+        let data_directory = default_game_data_directory();
+        if !data_directory.join(RESOURCES_ASSETS).exists() {
+            return;
+        }
+        let response = load_warhorse_collider_limit(data_directory.to_string_lossy().to_string())
+            .expect("read installed GameAssembly.dylib");
+        assert!((1..=1000).contains(&response.limit));
+    }
     use std::{
         fs,
         io::{Read, Write},
@@ -2320,7 +2582,10 @@ pub fn run() {
             load_game_assets,
             select_game_data_directory,
             apply_game_assets,
-            restore_game_assets
+            restore_game_assets,
+            load_warhorse_collider_limit,
+            apply_warhorse_collider_limit,
+            restore_warhorse_collider_limit
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
