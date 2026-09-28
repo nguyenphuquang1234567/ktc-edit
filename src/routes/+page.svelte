@@ -97,6 +97,11 @@
     saveClearedWalls?: number | null;
   }
 
+  interface ColliderLimitResponse {
+    limit: number;
+    backup: string | null;
+  }
+
   let filePath = $state<string | null>(null);
   let data = $state<JSONValue | null>(null);
   let isLoading = $state(false);
@@ -110,6 +115,10 @@
   let assetStatus = $state<string | null>(null);
   let assetError = $state<string | null>(null);
   let assetBackups = $state<string[]>([]);
+  let warhorseColliderLimit = $state<number | null>(null);
+  let warhorseColliderBackup = $state<string | null>(null);
+  let warhorseColliderError = $state<string | null>(null);
+  let warhorseColliderStatus = $state<string | null>(null);
   let resetSaveWalls = $state(true);
   let targetMode = $state<"campaign" | "challenge">("campaign");
   let selectedChallenge = $state(1); // Default to Plague Island if available
@@ -1447,11 +1456,69 @@
       const response = selectFolder
         ? await invoke<AssetResponse>("select_game_data_directory")
         : await invoke<AssetResponse>("load_game_assets", { dataDirectory: assetDirectory });
+      if (assetDirectory !== response.dataDirectory) warhorseColliderBackup = null;
       assetDirectory = response.dataDirectory;
       assetSettings = response.settings;
       assetStatus = "Loaded the current values from the game.";
+      warhorseColliderLimit = null;
+      warhorseColliderError = null;
+      warhorseColliderStatus = null;
+      try {
+        const collider = await invoke<ColliderLimitResponse>("load_warhorse_collider_limit", {
+          dataDirectory: response.dataDirectory
+        });
+        warhorseColliderLimit = collider.limit;
+      } catch (error) {
+        warhorseColliderError = String(error);
+      }
     } catch (error) {
       assetError = String(error);
+    } finally {
+      assetBusy = false;
+    }
+  }
+
+  async function applyWarhorseColliderLimit() {
+    if (!assetDirectory || warhorseColliderLimit === null) return;
+    warhorseColliderError = null;
+    warhorseColliderStatus = null;
+    if (!Number.isInteger(warhorseColliderLimit) || warhorseColliderLimit < 1 || warhorseColliderLimit > 1000) {
+      warhorseColliderError = "Enter a whole number between 1 and 1000.";
+      return;
+    }
+    assetBusy = true;
+    try {
+      const response = await invoke<ColliderLimitResponse>("apply_warhorse_collider_limit", {
+        dataDirectory: assetDirectory,
+        limit: warhorseColliderLimit
+      });
+      warhorseColliderLimit = response.limit;
+      warhorseColliderBackup = response.backup;
+      warhorseColliderStatus = response.backup
+        ? `GameAssembly.dylib updated, signed, and verified. Backup: ${response.backup}`
+        : "Collider limit is already set to this value.";
+    } catch (error) {
+      warhorseColliderError = String(error);
+    } finally {
+      assetBusy = false;
+    }
+  }
+
+  async function restoreWarhorseColliderLimit() {
+    if (!assetDirectory || !warhorseColliderBackup) return;
+    warhorseColliderError = null;
+    warhorseColliderStatus = null;
+    assetBusy = true;
+    try {
+      const response = await invoke<ColliderLimitResponse>("restore_warhorse_collider_limit", {
+        dataDirectory: assetDirectory,
+        backup: warhorseColliderBackup
+      });
+      warhorseColliderLimit = response.limit;
+      warhorseColliderBackup = response.backup;
+      warhorseColliderStatus = `Previous collider limit restored (${response.limit}).`;
+    } catch (error) {
+      warhorseColliderError = String(error);
     } finally {
       assetBusy = false;
     }
@@ -1567,6 +1634,16 @@
               <label>Buff duration (seconds)<input type="number" step="0.1" value={assetSettings.warhorseBuffDuration} oninput={(e) => updateAssetNumber('warhorseBuffDuration', e)} /></label>
               <label>Buff range<input type="number" step="0.1" value={assetSettings.warhorseBuffRange} oninput={(e) => updateAssetNumber('warhorseBuffRange', e)} /></label>
               <p class="muted">Skill stamina cost and buff range also apply to Warhorse Plague.</p>
+              {#if warhorseColliderLimit !== null}
+                <label>Collider scan limit<input type="number" min="1" max="1000" step="1" value={warhorseColliderLimit} oninput={(e) => warhorseColliderLimit = Number((e.currentTarget as HTMLInputElement).value)} /></label>
+                <button type="button" onclick={applyWarhorseColliderLimit} disabled={assetBusy}>Apply collider limit</button>
+                <button type="button" onclick={restoreWarhorseColliderLimit} disabled={assetBusy || !warhorseColliderBackup}>Restore collider limit</button>
+                <p class="muted">Separate from Apply above. Patches and re-signs GameAssembly.dylib on Apple Silicon Macs; close the game first. This limits colliders scanned, not the exact number of soldiers buffed.</p>
+                {#if warhorseColliderStatus}<p class="status success">{warhorseColliderStatus}</p>{/if}
+              {:else}
+                <p class="muted">Collider scan limit is unavailable for this game build.</p>
+              {/if}
+              {#if warhorseColliderError}<p class="status error">{warhorseColliderError}</p>{/if}
             </section>
 
             <section class="card asset-card">
