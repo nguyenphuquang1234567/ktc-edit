@@ -117,13 +117,17 @@ export interface DeityInfo {
 }
 
 export interface SetDeityStatusOptions {
-  campaignIndex: number;
+  campaignIndex?: number;
+  challengeIndex?: number;
+  targetMode?: "campaign" | "challenge";
   deityIndex: number;
   status: number;
 }
 
 export interface UnlockAllDeitiesOptions {
-  campaignIndex: number;
+  campaignIndex?: number;
+  challengeIndex?: number;
+  targetMode?: "campaign" | "challenge";
   status?: number; // 0, 1, 2
 }
 
@@ -2160,7 +2164,7 @@ export function getIslandOverview(doc: JSONValue | null, options: CampaignIsland
     }
     catapults.sort((a, b) => a.x - b.x);
 
-    const deities = getCampaignDeities(doc, options.campaignIndex);
+    const deities = getCampaignDeities(doc, options.campaignIndex, options.targetMode, options.challengeIndex);
 
     return {
       castleX,
@@ -2319,15 +2323,31 @@ const DEITY_DEFINITIONS = [
   { name: "Knight Shrine", island: 5 },
 ];
 
-export function getCampaignDeities(doc: JSONValue | null, campaignIndex: number): DeityInfo[] {
+export function getCampaignDeities(
+  doc: JSONValue | null,
+  campaignIndex: number = 0,
+  targetMode: "campaign" | "challenge" = "campaign",
+  challengeIndex: number = 0
+): DeityInfo[] {
   if (!doc) return [];
   try {
     const rootObj = toObject(doc, "Invalid save data");
-    const campaigns = toArray(rootObj.campaigns, "No campaigns found");
-    const campaign = campaigns[campaignIndex];
-    if (!campaign) return [];
+    let container: Record<string, JSONValue> | undefined;
 
-    const statuses = Array.isArray(campaign.deityStatuses) ? (campaign.deityStatuses as number[]) : [0, 0, 0, 0, 0, 0];
+    if (targetMode === "challenge") {
+      const challenges = toArray(rootObj.challenges, "No challenges found");
+      container = challenges[challengeIndex] as Record<string, JSONValue>;
+    } else {
+      const campaigns = toArray(rootObj.campaigns, "No campaigns found");
+      container = campaigns[campaignIndex] as Record<string, JSONValue>;
+    }
+
+    if (!container) return [];
+
+    const statuses = Array.isArray(container.deityStatuses)
+      ? (container.deityStatuses as number[])
+      : [0, 0, 0, 0, 0, 0];
+
     return DEITY_DEFINITIONS.map((d, i) => ({
       index: i,
       name: d.name,
@@ -2343,28 +2363,38 @@ export function getCampaignDeities(doc: JSONValue | null, campaignIndex: number)
 export function setDeityStatus(doc: JSONValue, options: SetDeityStatusOptions): JSONValue {
   const root = cloneJson(doc);
   const rootObj = toObject(root, "Invalid save data");
-  const campaigns = toArray(rootObj.campaigns, "No campaigns found");
-  const campaign = campaigns[options.campaignIndex];
-  if (!campaign) throw new Error("Campaign not found");
+  let container: Record<string, JSONValue> | undefined;
 
-  if (!Array.isArray(campaign.deityStatuses)) {
-    campaign.deityStatuses = [0, 0, 0, 0, 0, 0];
+  if (options.targetMode === "challenge") {
+    const challenges = toArray(rootObj.challenges, "No challenges found");
+    const chIdx = options.challengeIndex ?? 0;
+    container = challenges[chIdx] as Record<string, JSONValue>;
+    if (!container) throw new Error("Challenge not found");
+  } else {
+    const campaigns = toArray(rootObj.campaigns, "No campaigns found");
+    const campIdx = options.campaignIndex ?? 0;
+    container = campaigns[campIdx] as Record<string, JSONValue>;
+    if (!container) throw new Error("Campaign not found");
+  }
+
+  if (!Array.isArray(container.deityStatuses)) {
+    container.deityStatuses = [0, 0, 0, 0, 0, 0];
   }
 
   const idx = options.deityIndex;
-  if (idx >= 0 && idx < campaign.deityStatuses.length) {
-    campaign.deityStatuses[idx] = options.status;
+  if (idx >= 0 && idx < container.deityStatuses.length) {
+    container.deityStatuses[idx] = options.status;
   }
 
   if (options.status === 2) {
-    if (!Array.isArray(campaign.StatueExpirationDay)) {
-      campaign.StatueExpirationDay = [0, 0, 0, 0, 0, 0];
+    if (!Array.isArray(container.StatueExpirationDay)) {
+      container.StatueExpirationDay = [0, 0, 0, 0, 0, 0];
     }
-    const currentDays = typeof campaign.totalGameDays === "number" ? campaign.totalGameDays : 100;
-    campaign.StatueExpirationDay[idx] = currentDays + 999;
+    const currentDays = typeof container.totalGameDays === "number" ? container.totalGameDays : 100;
+    container.StatueExpirationDay[idx] = currentDays + 999;
   } else if (options.status === 0) {
-    if (Array.isArray(campaign.StatueExpirationDay)) {
-      campaign.StatueExpirationDay[idx] = 0;
+    if (Array.isArray(container.StatueExpirationDay)) {
+      container.StatueExpirationDay[idx] = 0;
     }
   }
 
@@ -2374,32 +2404,42 @@ export function setDeityStatus(doc: JSONValue, options: SetDeityStatusOptions): 
 export function unlockAllDeities(doc: JSONValue, options: UnlockAllDeitiesOptions): JSONValue {
   const root = cloneJson(doc);
   const rootObj = toObject(root, "Invalid save data");
-  const campaigns = toArray(rootObj.campaigns, "No campaigns found");
-  const campaign = campaigns[options.campaignIndex];
-  if (!campaign) throw new Error("Campaign not found");
+  let container: Record<string, JSONValue> | undefined;
+
+  if (options.targetMode === "challenge") {
+    const challenges = toArray(rootObj.challenges, "No challenges found");
+    const chIdx = options.challengeIndex ?? 0;
+    container = challenges[chIdx] as Record<string, JSONValue>;
+    if (!container) throw new Error("Challenge not found");
+  } else {
+    const campaigns = toArray(rootObj.campaigns, "No campaigns found");
+    const campIdx = options.campaignIndex ?? 0;
+    container = campaigns[campIdx] as Record<string, JSONValue>;
+    if (!container) throw new Error("Campaign not found");
+  }
 
   const targetStatus = options.status !== undefined ? options.status : 2;
 
-  if (!Array.isArray(campaign.deityStatuses)) {
-    campaign.deityStatuses = [0, 0, 0, 0, 0, 0];
+  if (!Array.isArray(container.deityStatuses)) {
+    container.deityStatuses = [0, 0, 0, 0, 0, 0];
   }
 
   for (let i = 0; i < 4; i++) {
-    campaign.deityStatuses[i] = targetStatus;
+    container.deityStatuses[i] = targetStatus;
   }
 
   if (targetStatus === 2) {
-    if (!Array.isArray(campaign.StatueExpirationDay)) {
-      campaign.StatueExpirationDay = [0, 0, 0, 0, 0, 0];
+    if (!Array.isArray(container.StatueExpirationDay)) {
+      container.StatueExpirationDay = [0, 0, 0, 0, 0, 0];
     }
-    const currentDays = typeof campaign.totalGameDays === "number" ? campaign.totalGameDays : 100;
+    const currentDays = typeof container.totalGameDays === "number" ? container.totalGameDays : 100;
     for (let i = 0; i < 4; i++) {
-      campaign.StatueExpirationDay[i] = currentDays + 999;
+      container.StatueExpirationDay[i] = currentDays + 999;
     }
   } else if (targetStatus === 0) {
-    if (Array.isArray(campaign.StatueExpirationDay)) {
+    if (Array.isArray(container.StatueExpirationDay)) {
       for (let i = 0; i < 4; i++) {
-        campaign.StatueExpirationDay[i] = 0;
+        container.StatueExpirationDay[i] = 0;
       }
     }
   }

@@ -412,8 +412,8 @@ fn apply_warhorse_collider_limit(
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     {
         use std::process::Command;
-        if !(1..=1000).contains(&limit) {
-            return Err("Collider limit must be between 1 and 1000".into());
+        if !(1..=2000).contains(&limit) {
+            return Err("Collider limit must be between 1 and 2000".into());
         }
         if game_is_running() {
             return Err("Close Kingdom Two Crowns before applying changes".into());
@@ -2273,7 +2273,7 @@ mod tests {
         }
         let response = load_warhorse_collider_limit(data_directory.to_string_lossy().to_string())
             .expect("read installed GameAssembly.dylib");
-        assert!((1..=1000).contains(&response.limit));
+        assert!((1..=2000).contains(&response.limit));
     }
     use std::{
         fs,

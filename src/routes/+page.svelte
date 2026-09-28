@@ -1378,6 +1378,8 @@
     try {
       const current = requireData();
       const updated = setDeityStatus(current, {
+        targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         deityIndex,
         status,
@@ -1395,6 +1397,8 @@
     try {
       const current = requireData();
       const updated = unlockAllDeities(current, {
+        targetMode,
+        challengeIndex: selectedChallenge,
         campaignIndex: selectedCampaign,
         status,
       });
@@ -1482,8 +1486,8 @@
     if (!assetDirectory || warhorseColliderLimit === null) return;
     warhorseColliderError = null;
     warhorseColliderStatus = null;
-    if (!Number.isInteger(warhorseColliderLimit) || warhorseColliderLimit < 1 || warhorseColliderLimit > 1000) {
-      warhorseColliderError = "Enter a whole number between 1 and 1000.";
+    if (!Number.isInteger(warhorseColliderLimit) || warhorseColliderLimit < 1 || warhorseColliderLimit > 2000) {
+      warhorseColliderError = "Enter a whole number between 1 and 2000.";
       return;
     }
     assetBusy = true;
@@ -1635,7 +1639,7 @@
               <label>Buff range<input type="number" step="0.1" value={assetSettings.warhorseBuffRange} oninput={(e) => updateAssetNumber('warhorseBuffRange', e)} /></label>
               <p class="muted">Skill stamina cost and buff range also apply to Warhorse Plague.</p>
               {#if warhorseColliderLimit !== null}
-                <label>Collider scan limit<input type="number" min="1" max="1000" step="1" value={warhorseColliderLimit} oninput={(e) => warhorseColliderLimit = Number((e.currentTarget as HTMLInputElement).value)} /></label>
+                <label>Collider scan limit<input type="number" min="1" max="2000" step="1" value={warhorseColliderLimit} oninput={(e) => warhorseColliderLimit = Number((e.currentTarget as HTMLInputElement).value)} /></label>
                 <button type="button" onclick={applyWarhorseColliderLimit} disabled={assetBusy}>Apply collider limit</button>
                 <button type="button" onclick={restoreWarhorseColliderLimit} disabled={assetBusy || !warhorseColliderBackup}>Restore collider limit</button>
                 <p class="muted">Separate from Apply above. Patches and re-signs GameAssembly.dylib on Apple Silicon Macs; close the game first. This limits colliders scanned, not the exact number of soldiers buffed.</p>
@@ -2013,80 +2017,82 @@
               {/if}
             </section>
 
-            <!-- Deities & Shrines Card (Campaign Only) -->
-            {#if targetMode === "campaign"}
-              <section class="card">
-                <div class="card-header-flex">
-                  <h3>⛩️ {t.inspector.deitiesTitle}</h3>
-                  <div class="batch-actions">
-                    <button type="button" class="btn-sm gold" onclick={() => handleUnlockAllDeities(2)}>
-                      {t.inspector.activateAllDeities}
-                    </button>
-                    <button type="button" class="btn-sm secondary" onclick={() => handleUnlockAllDeities(1)}>
-                      {t.inspector.unlockAllDeities}
-                    </button>
-                    <button type="button" class="btn-sm danger" onclick={() => handleUnlockAllDeities(0)}>
-                      {t.inspector.lockAllDeities}
-                    </button>
-                  </div>
+            <!-- Deities & Shrines Card -->
+            <section class="card">
+              <div class="card-header-flex">
+                <h3>⛩️ {t.inspector.deitiesTitle}</h3>
+                <div class="batch-actions">
+                  <button type="button" class="btn-sm gold" onclick={() => handleUnlockAllDeities(2)}>
+                    {t.inspector.activateAllDeities}
+                  </button>
+                  <button type="button" class="btn-sm secondary" onclick={() => handleUnlockAllDeities(1)}>
+                    {t.inspector.unlockAllDeities}
+                  </button>
+                  <button type="button" class="btn-sm danger" onclick={() => handleUnlockAllDeities(0)}>
+                    {t.inspector.lockAllDeities}
+                  </button>
                 </div>
+              </div>
 
-                {#if islandOverview.deities && islandOverview.deities.length > 0}
-                  <div class="deities-grid">
-                    {#each islandOverview.deities as deity}
-                      <div class="deity-card" class:active={deity.status === 2} class:unlocked={deity.status === 1}>
-                        <div class="deity-header">
-                          <span class="deity-name">
-                            {#if deity.index === 0}🏹{:else if deity.index === 1}🌾{:else if deity.index === 2}🔨{:else}⚔️{/if}
-                            {deity.name}
-                          </span>
+              {#if islandOverview.deities && islandOverview.deities.length > 0}
+                <div class="deities-grid">
+                  {#each islandOverview.deities as deity}
+                    <div class="deity-card" class:active={deity.status === 2} class:unlocked={deity.status === 1}>
+                      <div class="deity-header">
+                        <span class="deity-name">
+                          {#if deity.index === 0}🏹{:else if deity.index === 1}🌾{:else if deity.index === 2}🔨{:else}⚔️{/if}
+                          {deity.name}
+                        </span>
+                        {#if targetMode === 'campaign'}
                           <span class="deity-island-tag">Island {deity.island}</span>
-                        </div>
-
-                        <div class="deity-status-bar">
-                          <span class="deity-status-pill status-{deity.status}">
-                            {#if deity.status === 2}
-                              {t.inspector.deityStatusActive}
-                            {:else if deity.status === 1}
-                              {t.inspector.deityStatusUnlocked}
-                            {:else}
-                              {t.inspector.deityStatusLocked}
-                            {/if}
-                          </span>
-                        </div>
-
-                        <div class="deity-actions">
-                          <button
-                            type="button"
-                            class="btn-xs gold"
-                            disabled={deity.status === 2}
-                            onclick={() => handleSetDeityStatus(deity.index, 2)}
-                          >
-                            ⚡ Active
-                          </button>
-                          <button
-                            type="button"
-                            class="btn-xs"
-                            disabled={deity.status === 1}
-                            onclick={() => handleSetDeityStatus(deity.index, 1)}
-                          >
-                            🔓 Unlock
-                          </button>
-                          <button
-                            type="button"
-                            class="btn-xs danger"
-                            disabled={deity.status === 0}
-                            onclick={() => handleSetDeityStatus(deity.index, 0)}
-                          >
-                            🔒 Lock
-                          </button>
-                        </div>
+                        {:else}
+                          <span class="deity-island-tag">Global Buff</span>
+                        {/if}
                       </div>
-                    {/each}
-                  </div>
-                {/if}
-              </section>
-            {/if}
+
+                      <div class="deity-status-bar">
+                        <span class="deity-status-pill status-{deity.status}">
+                          {#if deity.status === 2}
+                            {t.inspector.deityStatusActive}
+                          {:else if deity.status === 1}
+                            {t.inspector.deityStatusUnlocked}
+                          {:else}
+                            {t.inspector.deityStatusLocked}
+                          {/if}
+                        </span>
+                      </div>
+
+                      <div class="deity-actions">
+                        <button
+                          type="button"
+                          class="btn-xs gold"
+                          disabled={deity.status === 2}
+                          onclick={() => handleSetDeityStatus(deity.index, 2)}
+                        >
+                          ⚡ Active
+                        </button>
+                        <button
+                          type="button"
+                          class="btn-xs"
+                          disabled={deity.status === 1}
+                          onclick={() => handleSetDeityStatus(deity.index, 1)}
+                        >
+                          🔓 Unlock
+                        </button>
+                        <button
+                          type="button"
+                          class="btn-xs danger"
+                          disabled={deity.status === 0}
+                          onclick={() => handleSetDeityStatus(deity.index, 0)}
+                        >
+                          🔒 Lock
+                        </button>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </section>
 
             <!-- Walls Fortification Card -->
             <section class="card">
