@@ -1764,14 +1764,16 @@
         </section>
 
         <div class="tabs">
-          <button 
-            type="button"
-            class="tab"
-            class:active={activeTab === 'inspector'}
-            onclick={() => activeTab = 'inspector'}
-          >
-            🗺️ {t.tabs.inspector}
-          </button>
+          {#if targetMode === "campaign"}
+            <button 
+              type="button"
+              class="tab"
+              class:active={activeTab === 'inspector'}
+              onclick={() => activeTab = 'inspector'}
+            >
+              🗺️ {t.tabs.inspector}
+            </button>
+          {/if}
           <button 
             type="button"
             class="tab"
@@ -1780,38 +1782,40 @@
           >
             {t.tabs.resources}
           </button>
-          <button 
-            type="button"
-            class="tab"
-            class:active={activeTab === 'navigation'}
-            onclick={() => activeTab = 'navigation'}
-          >
-            {t.tabs.navigation}
-          </button>
-          <button 
-            type="button"
-            class="tab"
-            class:active={activeTab === 'combat'}
-            onclick={() => activeTab = 'combat'}
-          >
-            {t.tabs.combat}
-          </button>
-          <button 
-            type="button"
-            class="tab"
-            class:active={activeTab === 'construction'}
-            onclick={() => activeTab = 'construction'}
-          >
-            {t.tabs.construction}
-          </button>
-          <button 
-            type="button"
-            class="tab"
-            class:active={activeTab === 'recruitment'}
-            onclick={() => activeTab = 'recruitment'}
-          >
-            {t.tabs.recruitment}
-          </button>
+          {#if targetMode === "campaign"}
+            <button 
+              type="button"
+              class="tab"
+              class:active={activeTab === 'navigation'}
+              onclick={() => activeTab = 'navigation'}
+            >
+              {t.tabs.navigation}
+            </button>
+            <button 
+              type="button"
+              class="tab"
+              class:active={activeTab === 'combat'}
+              onclick={() => activeTab = 'combat'}
+            >
+              {t.tabs.combat}
+            </button>
+            <button 
+              type="button"
+              class="tab"
+              class:active={activeTab === 'construction'}
+              onclick={() => activeTab = 'construction'}
+            >
+              {t.tabs.construction}
+            </button>
+            <button 
+              type="button"
+              class="tab"
+              class:active={activeTab === 'recruitment'}
+              onclick={() => activeTab = 'recruitment'}
+            >
+              {t.tabs.recruitment}
+            </button>
+          {/if}
         </div>
 
         {#if activeTab === 'inspector'}
