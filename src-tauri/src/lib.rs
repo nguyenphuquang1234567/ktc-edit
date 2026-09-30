@@ -10,6 +10,7 @@ use log::{debug, error, info};
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+mod coin_bag;
 
 const SAVE_FILENAME: &str = "global-v35";
 const RESOURCES_ASSETS: &str = "resources.assets";
@@ -2606,6 +2607,8 @@ pub fn run() {
             apply_game_assets,
             restore_game_assets,
             load_warhorse_collider_limit,
+            coin_bag::load_coin_visual_limit,
+            coin_bag::apply_coin_visual_limit,
             apply_warhorse_collider_limit,
             restore_warhorse_collider_limit
         ])

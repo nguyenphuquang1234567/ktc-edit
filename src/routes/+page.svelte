@@ -117,6 +117,11 @@
   let assetError = $state<string | null>(null);
   let assetBackups = $state<string[]>([]);
   let warhorseColliderLimit = $state<number | null>(null);
+  let coinVisualLimit = $state(30);
+  let coinVisualCurrent = $state<number | null>(null);
+  let coinVisualAvailable = $state(false);
+  let coinVisualStatus = $state<string | null>(null);
+  let coinVisualError = $state<string | null>(null);
   let warhorseColliderBackup = $state<string | null>(null);
   let warhorseColliderError = $state<string | null>(null);
   let warhorseColliderStatus = $state<string | null>(null);
@@ -1465,6 +1470,15 @@
       assetDirectory = response.dataDirectory;
       assetSettings = response.settings;
       assetStatus = "Loaded the current values from the game.";
+      coinVisualAvailable = false;
+      coinVisualStatus = null;
+      coinVisualError = null;
+      try {
+        const coins = await invoke<{limit: number | null}>("load_coin_visual_limit", {dataDirectory: response.dataDirectory});
+        coinVisualCurrent = coins.limit;
+        coinVisualLimit = coins.limit ?? 30;
+        coinVisualAvailable = true;
+      } catch (error) { coinVisualError = String(error); }
       warhorseColliderLimit = null;
       warhorseColliderError = null;
       warhorseColliderStatus = null;
@@ -1481,6 +1495,26 @@
     } finally {
       assetBusy = false;
     }
+  }
+
+  async function applyCoinVisualLimit(disable = false) {
+    if (!assetDirectory || !coinVisualAvailable || assetBusy) return;
+    coinVisualError = null;
+    coinVisualStatus = null;
+    if (!disable && (!Number.isInteger(coinVisualLimit) || coinVisualLimit < 1 || coinVisualLimit > 2000)) {
+      coinVisualError = "Enter a whole number between 1 and 2000.";
+      return;
+    }
+    assetBusy = true;
+    try {
+      const response = await invoke<{limit: number | null; backup: string | null}>("apply_coin_visual_limit", {
+        dataDirectory: assetDirectory, limit: disable ? null : coinVisualLimit
+      });
+      coinVisualCurrent = response.limit;
+      coinVisualStatus = (response.limit === null ? "Original coin display restored." : `Coin display limited to ${response.limit}.`) +
+        (response.backup ? ` Backup: ${response.backup}` : " No changes needed.");
+    } catch (error) { coinVisualError = String(error); }
+    finally { assetBusy = false; }
   }
 
   async function applyWarhorseColliderLimit() {
@@ -1649,6 +1683,17 @@
                 <p class="muted">Collider scan limit is unavailable for this game build.</p>
               {/if}
               {#if warhorseColliderError}<p class="status error">{warhorseColliderError}</p>{/if}
+            </section>
+
+            <section class="card asset-card">
+              <h2>Coin bag display</h2>
+              <p class="muted">Current: {coinVisualCurrent === null ? 'Original display (no visual cap)' : `${coinVisualCurrent} coin objects maximum`}</p>
+              <label>Maximum visible coins<input type="number" min="1" max="2000" step="1" bind:value={coinVisualLimit} /></label>
+              <button type="button" onclick={() => applyCoinVisualLimit()} disabled={assetBusy || !coinVisualAvailable}>Apply coin display limit</button>
+              <button type="button" onclick={() => applyCoinVisualLimit(true)} disabled={assetBusy || !coinVisualAvailable || coinVisualCurrent === null}>Restore original coin display</button>
+              <p class="muted">Separate from asset Apply. Patches and re-signs the selected game's GameAssembly.dylib on supported Apple Silicon builds. Close the game first. Wallet balance and gems are unchanged. Ground coins are not capped. Backups are created automatically.</p>
+              {#if coinVisualStatus}<p class="status success">{coinVisualStatus}</p>{/if}
+              {#if coinVisualError}<p class="status error">{coinVisualError}</p>{/if}
             </section>
 
             <section class="card asset-card">
