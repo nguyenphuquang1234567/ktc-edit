@@ -884,10 +884,10 @@ fn reset_walls_damageable_in_save_file(save_path: &Path) -> Result<usize, String
         .map_err(|err| err.to_string())?;
     let mut data: Value = serde_json::from_str(&json).map_err(|err| err.to_string())?;
 
-    let mut cleared_count = 0;
-    if let Some(campaigns) = data.get_mut("campaigns").and_then(|v| v.as_array_mut()) {
-        for campaign in campaigns {
-            if let Some(islands) = campaign.get_mut("_islands").and_then(|v| v.as_array_mut()) {
+    fn clear_walls_in_container(container: &mut [Value]) -> usize {
+        let mut count = 0;
+        for entry in container {
+            if let Some(islands) = entry.get_mut("_islands").and_then(|v| v.as_array_mut()) {
                 for island in islands {
                     if let Some(objects) = island.get_mut("objects").and_then(|v| v.as_array_mut())
                     {
@@ -906,7 +906,7 @@ fn reset_walls_damageable_in_save_file(save_path: &Path) -> Result<usize, String
                                         c.get("name").and_then(|v| v.as_str()) != Some("Damageable")
                                     });
                                     if components.len() < before_len {
-                                        cleared_count += 1;
+                                        count += 1;
                                     }
                                 }
                             }
@@ -915,6 +915,15 @@ fn reset_walls_damageable_in_save_file(save_path: &Path) -> Result<usize, String
                 }
             }
         }
+        count
+    }
+
+    let mut cleared_count = 0;
+    if let Some(campaigns) = data.get_mut("campaigns").and_then(|v| v.as_array_mut()) {
+        cleared_count += clear_walls_in_container(campaigns);
+    }
+    if let Some(challenges) = data.get_mut("challenges").and_then(|v| v.as_array_mut()) {
+        cleared_count += clear_walls_in_container(challenges);
     }
 
     if cleared_count > 0 {
