@@ -122,6 +122,10 @@
   let coinVisualAvailable = $state(false);
   let coinVisualStatus = $state<string | null>(null);
   let coinVisualError = $state<string | null>(null);
+  let campEnabled = $state(false);
+  let campAvailable = $state(false);
+  let campStatus = $state<string | null>(null);
+  let campError = $state<string | null>(null);
   let warhorseColliderBackup = $state<string | null>(null);
   let warhorseColliderError = $state<string | null>(null);
   let warhorseColliderStatus = $state<string | null>(null);
@@ -1479,6 +1483,14 @@
         coinVisualLimit = coins.limit ?? 30;
         coinVisualAvailable = true;
       } catch (error) { coinVisualError = String(error); }
+      campAvailable = false;
+      campStatus = null;
+      campError = null;
+      try {
+        const camp = await invoke<{enabled: boolean}>("load_camp_preservation", {dataDirectory: response.dataDirectory});
+        campEnabled = camp.enabled;
+        campAvailable = true;
+      } catch (error) { campError = String(error); }
       warhorseColliderLimit = null;
       warhorseColliderError = null;
       warhorseColliderStatus = null;
@@ -1514,6 +1526,22 @@
       coinVisualStatus = (response.limit === null ? "Original coin display restored." : `Coin display limited to ${response.limit}.`) +
         (response.backup ? ` Backup: ${response.backup}` : " No changes needed.");
     } catch (error) { coinVisualError = String(error); }
+    finally { assetBusy = false; }
+  }
+
+  async function applyCampPreservation(enabled: boolean) {
+    if (!assetDirectory || !campAvailable || assetBusy) return;
+    campError = null;
+    campStatus = null;
+    assetBusy = true;
+    try {
+      const response = await invoke<{enabled: boolean; backup: string | null}>("apply_camp_preservation", {
+        dataDirectory: assetDirectory, enabled
+      });
+      campEnabled = response.enabled;
+      campStatus = (response.enabled ? "Vagrant camps are preserved when the forest disappears." : "Original camp removal restored.") +
+        (response.backup ? ` Backup: ${response.backup}` : " No changes needed.");
+    } catch (error) { campError = String(error); }
     finally { assetBusy = false; }
   }
 
@@ -1694,6 +1722,16 @@
               <p class="muted">Separate from asset Apply. Patches and re-signs the selected game's GameAssembly.dylib on supported Apple Silicon builds. Close the game first. Wallet balance and gems are unchanged. Ground coins are not capped. Backups are created automatically.</p>
               {#if coinVisualStatus}<p class="status success">{coinVisualStatus}</p>{/if}
               {#if coinVisualError}<p class="status error">{coinVisualError}</p>{/if}
+            </section>
+
+            <section class="card asset-card">
+              <h2>Vagrant camps</h2>
+              <p class="muted">Current: {!campAvailable ? 'Unavailable for this game build' : campEnabled ? 'Preserved after deforestation' : 'Original camp removal'}</p>
+              <button type="button" onclick={() => applyCampPreservation(true)} disabled={assetBusy || !campAvailable || campEnabled}>Preserve vagrant camps</button>
+              <button type="button" onclick={() => applyCampPreservation(false)} disabled={assetBusy || !campAvailable || !campEnabled}>Restore camp removal</button>
+              <p class="muted">Separate from asset Apply. Patches and re-signs GameAssembly.dylib on supported Apple Silicon builds; close the game first. Forest boundaries still shrink normally. Restore keeps other patches. Backups are automatic. Multiplayer is unverified.</p>
+              {#if campStatus}<p class="status success">{campStatus}</p>{/if}
+              {#if campError}<p class="status error">{campError}</p>{/if}
             </section>
 
             <section class="card asset-card">

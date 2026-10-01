@@ -34,7 +34,7 @@ fn code(limit: u16) -> Vec<u8> {
     .flat_map(u32::to_le_bytes)
     .collect()
 }
-fn locate(b: &[u8]) -> Result<usize, String> {
+pub(super) fn locate(b: &[u8]) -> Result<usize, String> {
     if b.get(..4) != Some(&[0xca, 0xfe, 0xba, 0xbe]) {
         return Err("Unsupported dylib container".into());
     }

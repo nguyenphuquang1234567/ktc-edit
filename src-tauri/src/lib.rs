@@ -10,6 +10,7 @@ use log::{debug, error, info};
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+mod camp;
 mod coin_bag;
 
 const SAVE_FILENAME: &str = "global-v35";
@@ -2618,6 +2619,8 @@ pub fn run() {
             load_warhorse_collider_limit,
             coin_bag::load_coin_visual_limit,
             coin_bag::apply_coin_visual_limit,
+            camp::load_camp_preservation,
+            camp::apply_camp_preservation,
             apply_warhorse_collider_limit,
             restore_warhorse_collider_limit
         ])
