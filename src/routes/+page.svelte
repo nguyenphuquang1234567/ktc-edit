@@ -123,6 +123,7 @@
   let coinVisualStatus = $state<string | null>(null);
   let coinVisualError = $state<string | null>(null);
   let campEnabled = $state(false);
+  let campNeedsUpgrade = $state(false);
   let campAvailable = $state(false);
   let campStatus = $state<string | null>(null);
   let campError = $state<string | null>(null);
@@ -1487,8 +1488,9 @@
       campStatus = null;
       campError = null;
       try {
-        const camp = await invoke<{enabled: boolean}>("load_camp_preservation", {dataDirectory: response.dataDirectory});
+        const camp = await invoke<{enabled: boolean; needsUpgrade: boolean}>("load_camp_preservation", {dataDirectory: response.dataDirectory});
         campEnabled = camp.enabled;
+        campNeedsUpgrade = camp.needsUpgrade;
         campAvailable = true;
       } catch (error) { campError = String(error); }
       warhorseColliderLimit = null;
@@ -1539,6 +1541,7 @@
         dataDirectory: assetDirectory, enabled
       });
       campEnabled = response.enabled;
+      campNeedsUpgrade = false;
       campStatus = (response.enabled ? "Vagrant camps are preserved when the forest disappears." : "Original camp removal restored.") +
         (response.backup ? ` Backup: ${response.backup}` : " No changes needed.");
     } catch (error) { campError = String(error); }
@@ -1726,8 +1729,8 @@
 
             <section class="card asset-card">
               <h2>Vagrant camps</h2>
-              <p class="muted">Current: {!campAvailable ? 'Unavailable for this game build' : campEnabled ? 'Preserved after deforestation' : 'Original camp removal'}</p>
-              <button type="button" onclick={() => applyCampPreservation(true)} disabled={assetBusy || !campAvailable || campEnabled}>Preserve vagrant camps</button>
+              <p class="muted">Current: {!campAvailable ? 'Unavailable for this game build' : campNeedsUpgrade ? 'Old patch — upgrade required to detach camps from the forest' : campEnabled ? 'Preserved and detached after deforestation' : 'Original camp removal'}</p>
+              <button type="button" onclick={() => applyCampPreservation(true)} disabled={assetBusy || !campAvailable || (campEnabled && !campNeedsUpgrade)}>{campNeedsUpgrade ? 'Upgrade camp preservation' : 'Preserve vagrant camps'}</button>
               <button type="button" onclick={() => applyCampPreservation(false)} disabled={assetBusy || !campAvailable || !campEnabled}>Restore camp removal</button>
               <p class="muted">Separate from asset Apply. Patches and re-signs GameAssembly.dylib on supported Apple Silicon builds; close the game first. Forest boundaries still shrink normally. Restore keeps other patches. Backups are automatic. Multiplayer is unverified.</p>
               {#if campStatus}<p class="status success">{campStatus}</p>{/if}

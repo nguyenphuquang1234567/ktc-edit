@@ -4,17 +4,20 @@ const HOOK: usize = 0x660dbc;
 const CAVE: usize = 0x44c6d00;
 const CONTINUE: usize = 0x660dc0;
 const FADE: usize = 0x661a88;
+const GUARD_LEN: usize = 244;
 
 #[derive(Serialize)]
 pub struct Response {
     enabled: bool,
+    #[serde(rename = "needsUpgrade")]
+    needs_upgrade: bool,
     backup: Option<String>,
 }
 
 fn branch(a: usize, z: usize, link: bool) -> u32 {
     (if link { 0x94000000 } else { 0x14000000 }) | (((z as i64 - a as i64) / 4) as u32 & 0x3ffffff)
 }
-fn code() -> Vec<u8> {
+fn legacy_code() -> Vec<u8> {
     [
         0xf9402008_u32,
         0xb40002e8,
@@ -47,6 +50,54 @@ fn code() -> Vec<u8> {
     .flat_map(u32::to_le_bytes)
     .collect()
 }
+fn code() -> Vec<u8> {
+    let mut guard = legacy_code();
+    guard[44..48].copy_from_slice(&0x540001e0_u32.to_le_bytes());
+    guard[84..88].copy_from_slice(&0x540000a0_u32.to_le_bytes());
+    // Remove current circular-list node exactly as LinkedList.Remove does, then
+    // clear the item's links. Restore UpdateRegion's frame and tail-restart it:
+    // no stale enumerator, recursive stack growth, or camp destruction.
+    for word in [
+        0xf94032a8_u32,
+        0xb40002c8,
+        0xf9401669,
+        0xf9400d0a,
+        0xf940110b,
+        0xeb08015f,
+        0x54000100,
+        0xf900114b,
+        0xf9000d6a,
+        0xf940092c,
+        0xeb08019f,
+        0x54000081,
+        0xf900092a,
+        0x14000002,
+        0xf900093f,
+        0xa9017d1f,
+        0xf900111f,
+        0xb940192a,
+        0x5100054a,
+        0xb900192a,
+        0xb9401d2a,
+        0x1100054a,
+        0xb9001d2a,
+        0xf90032bf,
+        0xf9001ebf,
+        0xaa1303e0,
+        0xa94c7bfd,
+        0xa94b4ff4,
+        0xa94a57f6,
+        0xa9495ff8,
+        0xa94867fa,
+        0xa9476ffc,
+        0x6d4623e9,
+        0x910343ff,
+        branch(CAVE + 240, 0x660a08, false),
+    ] {
+        guard.extend_from_slice(&word.to_le_bytes());
+    }
+    guard
+}
 fn word(b: &[u8], p: usize) -> Result<u32, String> {
     Ok(u32::from_le_bytes(
         b.get(p..p + 4)
@@ -70,6 +121,10 @@ fn locate(b: &[u8]) -> Result<usize, String> {
         (0x701074, 0x948c4a42),
         (0x28f9290, 0xf9400448),
         (0x28f9294, 0xf9000808),
+        (0x660a08, 0xd10343ff),
+        (0x2473060, 0xf9400e88),
+        (0x247309c, 0xa9017e9f),
+        (0x24730b4, 0xfd000e60),
     ] {
         if word(b, off + a)? != w {
             return Err("Unsupported Beggar Camp native code".into());
@@ -95,7 +150,7 @@ fn locate(b: &[u8]) -> Result<usize, String> {
                     .try_into()
                     .unwrap(),
             );
-            fits = fs >= (CAVE + 104) as u64 && word(b, p + 60)? & 4 != 0;
+            fits = fs >= (CAVE + GUARD_LEN) as u64 && word(b, p + 60)? & 4 != 0;
         }
         p = p.checked_add(size).ok_or("Invalid Mach-O layout")?;
     }
@@ -104,18 +159,28 @@ fn locate(b: &[u8]) -> Result<usize, String> {
     }
     Ok(off)
 }
-fn read(b: &[u8]) -> Result<bool, String> {
+// 0 = original, 1 = old preservation-only patch, 2 = detached-camp patch.
+fn mode(b: &[u8]) -> Result<u8, String> {
     let off = locate(b)?;
     let guard = b
-        .get(off + CAVE..off + CAVE + 104)
+        .get(off + CAVE..off + CAVE + GUARD_LEN)
         .ok_or("Truncated guard")?;
     if word(b, off + HOOK)? == branch(HOOK, FADE, true) && guard.iter().all(|x| *x == 0) {
-        return Ok(false);
+        return Ok(0);
     }
     if word(b, off + HOOK)? == branch(HOOK, CAVE, false) && guard == code() {
-        return Ok(true);
+        return Ok(2);
+    }
+    if word(b, off + HOOK)? == branch(HOOK, CAVE, false)
+        && guard[..104] == legacy_code()
+        && guard[104..].iter().all(|x| *x == 0)
+    {
+        return Ok(1);
     }
     Err("Unrecognized camp patch or occupied code cave".into())
+}
+fn read(b: &[u8]) -> Result<bool, String> {
+    Ok(mode(b)? != 0)
 }
 fn patch(b: &mut [u8], enabled: bool) -> Result<(), String> {
     read(b)?;
@@ -126,7 +191,11 @@ fn patch(b: &mut [u8], enabled: bool) -> Result<(), String> {
         branch(HOOK, FADE, true)
     };
     b[off + HOOK..off + HOOK + 4].copy_from_slice(&hook.to_le_bytes());
-    b[off + CAVE..off + CAVE + 104].copy_from_slice(&if enabled { code() } else { vec![0; 104] });
+    b[off + CAVE..off + CAVE + GUARD_LEN].copy_from_slice(&if enabled {
+        code()
+    } else {
+        vec![0; GUARD_LEN]
+    });
     Ok(())
 }
 fn check_metadata(directory: &Path) -> Result<(), String> {
@@ -150,8 +219,10 @@ pub fn load_camp_preservation(data_directory: String) -> Result<Response, String
     let dir = Path::new(&data_directory);
     let p = game_assembly_path(dir)?;
     check_metadata(dir)?;
+    let state = mode(&fs::read(p).map_err(|e| e.to_string())?)?;
     Ok(Response {
-        enabled: read(&fs::read(p).map_err(|e| e.to_string())?)?,
+        enabled: state != 0,
+        needs_upgrade: state == 1,
         backup: None,
     })
 }
@@ -168,9 +239,10 @@ pub fn apply_camp_preservation(data_directory: String, enabled: bool) -> Result<
     let p = game_assembly_path(dir)?;
     check_metadata(dir)?;
     let mut b = fs::read(&p).map_err(|e| e.to_string())?;
-    if read(&b)? == enabled {
+    if mode(&b)? == if enabled { 2 } else { 0 } {
         return Ok(Response {
             enabled,
+            needs_upgrade: false,
             backup: None,
         });
     }
@@ -212,6 +284,7 @@ pub fn apply_camp_preservation(data_directory: String, enabled: bool) -> Result<
     result.map_err(|e| format!("{e}. Original file unchanged. Backup: {}", backup.display()))?;
     Ok(Response {
         enabled,
+        needs_upgrade: false,
         backup: Some(backup.to_string_lossy().into()),
     })
 }
@@ -225,6 +298,15 @@ mod tests {
             return;
         }
         let mut b = fs::read(p).unwrap();
+        patch(&mut b, false).unwrap();
+        let off = locate(&b).unwrap();
+        b[off + HOOK..off + HOOK + 4].copy_from_slice(&branch(HOOK, CAVE, false).to_le_bytes());
+        b[off + CAVE..off + CAVE + 104].copy_from_slice(&legacy_code());
+        assert_eq!(mode(&b).unwrap(), 1);
+        patch(&mut b, true).unwrap();
+        assert_eq!(mode(&b).unwrap(), 2);
+        patch(&mut b, false).unwrap();
+        assert_eq!(mode(&b).unwrap(), 0);
         let before = b.clone();
         let state = read(&b).unwrap();
         let off = locate(&b).unwrap();
@@ -236,7 +318,7 @@ mod tests {
         );
         assert!(b.iter().zip(&before).enumerate().all(|(i, (a, z))| a == z
             || (off + HOOK..off + HOOK + 4).contains(&i)
-            || (off + CAVE..off + CAVE + 104).contains(&i)));
+            || (off + CAVE..off + CAVE + GUARD_LEN).contains(&i)));
         patch(&mut b, state).unwrap();
         assert_eq!(b, before);
         b[off + CONTINUE] ^= 1;
@@ -244,8 +326,9 @@ mod tests {
     }
     #[test]
     fn matches_gameplay_tested_artifact() {
-        let p =
-            Path::new("/Users/quangvictornguyen/Documents/Codex/2026-09-19/l/camp-patch/guard.bin");
+        let p = Path::new(
+            "/Users/quangvictornguyen/Documents/Codex/2026-09-19/l/camp-detach-test/guard.bin",
+        );
         if p.exists() {
             assert_eq!(code(), fs::read(p).unwrap());
         }
