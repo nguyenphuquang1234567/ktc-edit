@@ -143,17 +143,15 @@ fn read(b: &[u8]) -> Result<Option<u16>, String> {
     }
     let mov = word(b, o + cave + 8)?;
     let limit = ((mov >> 5) & 0xffff) as u16;
-    if !(1..=2000).contains(&limit)
-        || b[o + cave..o + cave + 24] != code_at(limit, hook_address, cave)
-    {
+    if limit == 0 || b[o + cave..o + cave + 24] != code_at(limit, hook_address, cave) {
         return Err("Invalid coin bag trampoline".into());
     }
     Ok(Some(limit))
 }
 fn patch(b: &mut [u8], limit: Option<u16>) -> Result<(), String> {
     read(b)?;
-    if limit.is_some_and(|x| !(1..=2000).contains(&x)) {
-        return Err("Visual limit must be between 1 and 2000".into());
+    if limit == Some(0) {
+        return Err("Visual limit must be positive (ARM64 immediate maximum: 65535)".into());
     }
     let o = locate(b)?;
     #[allow(non_snake_case)]
@@ -277,7 +275,7 @@ mod tests {
         #[allow(non_snake_case)]
         let (hook, _) = layout(&original, locate(&original).unwrap()).unwrap();
         let old = read(&b).unwrap();
-        for n in [1, 30, 2000] {
+        for n in [1, 30, 2001, 5000, u16::MAX] {
             patch(&mut b, Some(n)).unwrap();
             assert_eq!(read(&b).unwrap(), Some(n));
         }

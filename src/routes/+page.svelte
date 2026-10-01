@@ -1515,8 +1515,8 @@
     if (!assetDirectory || !coinVisualAvailable || assetBusy) return;
     coinVisualError = null;
     coinVisualStatus = null;
-    if (!disable && (!Number.isInteger(coinVisualLimit) || coinVisualLimit < 1 || coinVisualLimit > 2000)) {
-      coinVisualError = "Enter a whole number between 1 and 2000.";
+    if (!disable && (!Number.isInteger(coinVisualLimit) || coinVisualLimit < 1 || coinVisualLimit > 65535)) {
+      coinVisualError = "Enter a positive whole number. ARM64 immediate maximum: 65535.";
       return;
     }
     assetBusy = true;
@@ -1552,8 +1552,8 @@
     if (!assetDirectory || warhorseColliderLimit === null) return;
     warhorseColliderError = null;
     warhorseColliderStatus = null;
-    if (!Number.isInteger(warhorseColliderLimit) || warhorseColliderLimit < 1 || warhorseColliderLimit > 2000) {
-      warhorseColliderError = "Enter a whole number between 1 and 2000.";
+    if (!Number.isInteger(warhorseColliderLimit) || warhorseColliderLimit < 1 || warhorseColliderLimit > 65535) {
+      warhorseColliderError = "Enter a positive whole number. ARM64 immediate maximum: 65535.";
       return;
     }
     assetBusy = true;
@@ -1705,7 +1705,7 @@
               <label>Buff range<input type="number" step="0.1" value={assetSettings.warhorseBuffRange} oninput={(e) => updateAssetNumber('warhorseBuffRange', e)} /></label>
               <p class="muted">Skill stamina cost and buff range also apply to Warhorse Plague.</p>
               {#if warhorseColliderLimit !== null}
-                <label>Collider scan limit<input type="number" min="1" max="2000" step="1" value={warhorseColliderLimit} oninput={(e) => warhorseColliderLimit = Number((e.currentTarget as HTMLInputElement).value)} /></label>
+                <label>Collider scan limit<input type="number" min="1" max="65535" step="1" value={warhorseColliderLimit} oninput={(e) => warhorseColliderLimit = Number((e.currentTarget as HTMLInputElement).value)} /></label>
                 <button type="button" onclick={applyWarhorseColliderLimit} disabled={assetBusy}>Apply collider limit</button>
                 <button type="button" onclick={restoreWarhorseColliderLimit} disabled={assetBusy || !warhorseColliderBackup}>Restore collider limit</button>
                 <p class="muted">Separate from Apply above. Patches and re-signs GameAssembly.dylib on Apple Silicon Macs; close the game first. This limits colliders scanned, not the exact number of soldiers buffed.</p>
@@ -1719,7 +1719,7 @@
             <section class="card asset-card">
               <h2>Coin bag display</h2>
               <p class="muted">Current: {coinVisualCurrent === null ? 'Original display (no visual cap)' : `${coinVisualCurrent} coin objects maximum`}</p>
-              <label>Maximum visible coins<input type="number" min="1" max="2000" step="1" bind:value={coinVisualLimit} /></label>
+              <label>Maximum visible coins<input type="number" min="1" max="65535" step="1" bind:value={coinVisualLimit} /></label>
               <button type="button" onclick={() => applyCoinVisualLimit()} disabled={assetBusy || !coinVisualAvailable}>Apply coin display limit</button>
               <button type="button" onclick={() => applyCoinVisualLimit(true)} disabled={assetBusy || !coinVisualAvailable || coinVisualCurrent === null}>Restore original coin display</button>
               <p class="muted">Separate from asset Apply. Patches and re-signs the selected game's GameAssembly.dylib on supported Apple Silicon builds. Close the game first. Wallet balance and gems are unchanged. Ground coins are not capped. Backups are created automatically.</p>

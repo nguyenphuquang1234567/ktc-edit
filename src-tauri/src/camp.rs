@@ -387,7 +387,9 @@ mod tests {
         if !p.exists() {
             return;
         }
-        let original = fs::read(p).unwrap();
+        let mut original = fs::read(p).unwrap();
+        // Start from an unpatched in-memory baseline even if the user enabled it.
+        patch(&mut original, false).unwrap();
         let off = locate(&original).unwrap();
         let (hook, cave, _, _) = layout(&original, off).unwrap();
         if hook == HOOK {
@@ -400,7 +402,10 @@ mod tests {
             || (off + hook..off + hook + 4).contains(&i)
             || (off + cave..off + cave + GUARD_LEN).contains(&i)));
         patch(&mut b, false).unwrap();
-        assert_eq!(b, original);
+        assert!(
+            b == original,
+            "Restoring must recover the in-memory baseline"
+        );
         b[off + 0x66202c] ^= 1;
         assert!(patch(&mut b, true).is_err());
     }

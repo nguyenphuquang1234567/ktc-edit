@@ -421,8 +421,8 @@ fn apply_warhorse_collider_limit(
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     {
         use std::process::Command;
-        if !(1..=2000).contains(&limit) {
-            return Err("Collider limit must be between 1 and 2000".into());
+        if limit == 0 {
+            return Err("Collider limit must be positive (ARM64 immediate maximum: 65535)".into());
         }
         if game_is_running() {
             return Err("Close Kingdom Two Crowns before applying changes".into());
@@ -1862,6 +1862,10 @@ fn write_builtin_component_targets(
     Ok(())
 }
 
+fn valid_nonnegative_asset_number(value: f32) -> bool {
+    value.is_finite() && value >= 0.0
+}
+
 fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
     if !(1..=1_000_000).contains(&settings.wall5_standard_hit_points)
         || !(1..=1_000_000).contains(&settings.wall5_norselands_hit_points)
@@ -1912,9 +1916,9 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
     ];
     if values
         .iter()
-        .any(|value| !value.is_finite() || *value < 0.0 || *value > 2000.0)
+        .any(|value| !valid_nonnegative_asset_number(*value))
     {
-        return Err("Every value must be between 0 and 2000".into());
+        return Err("Every value must be finite and non-negative".into());
     }
     if !settings.warhorse_buff_duration.is_finite()
         || !(0.0..=1_000_000.0).contains(&settings.warhorse_buff_duration)
@@ -2391,6 +2395,15 @@ mod tests {
     }
 
     #[test]
+    fn asset_values_above_2000_are_allowed_but_invalid_floats_are_not() {
+        assert!(valid_nonnegative_asset_number(5000.0));
+        assert!(valid_nonnegative_asset_number(f32::MAX));
+        assert!(!valid_nonnegative_asset_number(f32::INFINITY));
+        assert!(!valid_nonnegative_asset_number(f32::NAN));
+        assert!(!valid_nonnegative_asset_number(-1.0));
+    }
+
+    #[test]
     fn updated_warhorse_fields_roundtrip_in_memory() {
         let dir = default_game_data_directory();
         let Ok(mut resources) = fs::read(dir.join(RESOURCES_ASSETS)) else {
@@ -2441,7 +2454,7 @@ mod tests {
         }
         let response = load_warhorse_collider_limit(data_directory.to_string_lossy().to_string())
             .expect("read installed GameAssembly.dylib");
-        assert!((1..=2000).contains(&response.limit));
+        assert!(response.limit > 0);
     }
     use std::{
         fs,
