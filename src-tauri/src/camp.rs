@@ -106,32 +106,83 @@ fn word(b: &[u8], p: usize) -> Result<u32, String> {
             .unwrap(),
     ))
 }
+fn layout(b: &[u8], off: usize) -> Result<(usize, usize, usize, usize), String> {
+    if coin_bag::layout(b, off)?.0 == 0xb1512c {
+        Ok((0x662030, 0x44d7700, 0x662034, 0x662cfc))
+    } else {
+        Ok((HOOK, CAVE, CONTINUE, FADE))
+    }
+}
+fn guard_for(b: &[u8], off: usize) -> Result<Vec<u8>, String> {
+    let (hook, cave, cont, fade) = layout(b, off)?;
+    let mut guard = code();
+    if hook != HOOK {
+        let set = |g: &mut Vec<u8>, p: usize, w: u32| g[p..p + 4].copy_from_slice(&w.to_le_bytes());
+        let mov = |v: usize, base: u32| base | (((v as u32) & 0xffff) << 5);
+        set(&mut guard, 12, mov(cave + 8, 0xd280000b));
+        set(&mut guard, 16, mov((cave + 8) >> 16, 0xf2a0000b));
+        set(&mut guard, 24, mov(0x70254c, 0xd280000b));
+        set(&mut guard, 28, mov(0x70254c >> 16, 0xf2a0000b));
+        set(&mut guard, 96, branch(cave + 96, fade, true));
+        set(&mut guard, 100, branch(cave + 100, cont, false));
+        set(&mut guard, 240, branch(cave + 240, 0x661c7c, false));
+    }
+    Ok(guard)
+}
 fn locate(b: &[u8]) -> Result<usize, String> {
     let off = coin_bag::locate(b)?;
-    // The exact loop, callback construction and delegate layout inspected for this build.
-    for (a, w) in [
-        (0x660dac, 0x394162a8),
-        (0x660db0, 0x3707fb68),
-        (0x660db4, 0x2f00e400),
-        (0x660db8, 0xaa1503e0),
-        (CONTINUE, 0x17ffffd7),
-        (0x701058, 0xf9400102),
-        (0x70105c, 0xaa1303e1),
-        (0x701064, 0x9487e085),
-        (0x701074, 0x948c4a42),
-        (0x28f9290, 0xf9400448),
-        (0x28f9294, 0xf9000808),
-        (0x660a08, 0xd10343ff),
-        (0x2473060, 0xf9400e88),
-        (0x247309c, 0xa9017e9f),
-        (0x24730b4, 0xfd000e60),
-    ] {
-        if word(b, off + a)? != w {
-            return Err("Unsupported Beggar Camp native code".into());
+    let (hook, cave, _, _) = layout(b, off)?;
+    if hook != HOOK {
+        for (a, w) in [
+            (0x662020, 0x394162a8),
+            (0x662024, 0x3707fb68),
+            (0x662028, 0x2f00e400),
+            (0x66202c, 0xaa1503e0),
+            (0x662034, 0x17ffffd7),
+            (0x7022d4, 0xf9400102),
+            (0x7022d8, 0xaa1303e1),
+            (0x7022e0, 0x94880d10),
+            (0x7022f0, 0x948c76cd),
+            (0x2905738, 0xf9400448),
+            (0x290573c, 0xf9000808),
+            (0x661c7c, 0xd10343ff),
+            (0x248634c, 0xf9400e88),
+            (0x2486388, 0xa9017e9f),
+            (0x24863a0, 0xfd000e60),
+        ] {
+            if word(b, off + a)? != w {
+                return Err("Unsupported updated camp code".into());
+            }
         }
-    }
-    if b.get(off + 0x4906b90..off + 0x4906b98) != Some(&0x60000977_u64.to_le_bytes()) {
-        return Err("Unsupported camp callback metadata reference".into());
+        if b.get(off + 0x4916ed8..off + 0x4916ee0) != Some(&0x60000977_u64.to_le_bytes()) {
+            return Err("Unsupported updated camp callback".into());
+        }
+    } else {
+        // The exact loop, callback construction and delegate layout inspected for this build.
+        for (a, w) in [
+            (0x660dac, 0x394162a8),
+            (0x660db0, 0x3707fb68),
+            (0x660db4, 0x2f00e400),
+            (0x660db8, 0xaa1503e0),
+            (CONTINUE, 0x17ffffd7),
+            (0x701058, 0xf9400102),
+            (0x70105c, 0xaa1303e1),
+            (0x701064, 0x9487e085),
+            (0x701074, 0x948c4a42),
+            (0x28f9290, 0xf9400448),
+            (0x28f9294, 0xf9000808),
+            (0x660a08, 0xd10343ff),
+            (0x2473060, 0xf9400e88),
+            (0x247309c, 0xa9017e9f),
+            (0x24730b4, 0xfd000e60),
+        ] {
+            if word(b, off + a)? != w {
+                return Err("Unsupported Beggar Camp native code".into());
+            }
+        }
+        if b.get(off + 0x4906b90..off + 0x4906b98) != Some(&0x60000977_u64.to_le_bytes()) {
+            return Err("Unsupported camp callback metadata reference".into());
+        }
     }
     // coin_bag::locate verifies all sections end before its earlier cave.
     // Check our later guard also remains inside the executable __TEXT file range.
@@ -150,7 +201,7 @@ fn locate(b: &[u8]) -> Result<usize, String> {
                     .try_into()
                     .unwrap(),
             );
-            fits = fs >= (CAVE + GUARD_LEN) as u64 && word(b, p + 60)? & 4 != 0;
+            fits = fs >= (cave + GUARD_LEN) as u64 && word(b, p + 60)? & 4 != 0;
         }
         p = p.checked_add(size).ok_or("Invalid Mach-O layout")?;
     }
@@ -162,16 +213,19 @@ fn locate(b: &[u8]) -> Result<usize, String> {
 // 0 = original, 1 = old preservation-only patch, 2 = detached-camp patch.
 fn mode(b: &[u8]) -> Result<u8, String> {
     let off = locate(b)?;
+    #[allow(non_snake_case)]
+    let (hook, cave, _, fade) = layout(b, off)?;
     let guard = b
-        .get(off + CAVE..off + CAVE + GUARD_LEN)
+        .get(off + cave..off + cave + GUARD_LEN)
         .ok_or("Truncated guard")?;
-    if word(b, off + HOOK)? == branch(HOOK, FADE, true) && guard.iter().all(|x| *x == 0) {
+    if word(b, off + hook)? == branch(hook, fade, true) && guard.iter().all(|x| *x == 0) {
         return Ok(0);
     }
-    if word(b, off + HOOK)? == branch(HOOK, CAVE, false) && guard == code() {
+    if word(b, off + hook)? == branch(hook, cave, false) && guard == guard_for(b, off)? {
         return Ok(2);
     }
-    if word(b, off + HOOK)? == branch(HOOK, CAVE, false)
+    if hook == HOOK
+        && word(b, off + hook)? == branch(hook, cave, false)
         && guard[..104] == legacy_code()
         && guard[104..].iter().all(|x| *x == 0)
     {
@@ -185,14 +239,17 @@ fn read(b: &[u8]) -> Result<bool, String> {
 fn patch(b: &mut [u8], enabled: bool) -> Result<(), String> {
     read(b)?;
     let off = locate(b)?;
+    let guard = guard_for(b, off)?;
+    #[allow(non_snake_case)]
+    let (hook_address, cave, _, fade) = layout(b, off)?;
     let hook = if enabled {
-        branch(HOOK, CAVE, false)
+        branch(hook_address, cave, false)
     } else {
-        branch(HOOK, FADE, true)
+        branch(hook_address, fade, true)
     };
-    b[off + HOOK..off + HOOK + 4].copy_from_slice(&hook.to_le_bytes());
-    b[off + CAVE..off + CAVE + GUARD_LEN].copy_from_slice(&if enabled {
-        code()
+    b[off + hook_address..off + hook_address + 4].copy_from_slice(&hook.to_le_bytes());
+    b[off + cave..off + cave + GUARD_LEN].copy_from_slice(&if enabled {
+        guard
     } else {
         vec![0; GUARD_LEN]
     });
@@ -293,7 +350,7 @@ mod tests {
     use super::*;
     #[test]
     fn roundtrip_and_preserve_coin_patch() {
-        let p=Path::new("/Users/quangvictornguyen/Library/Application Support/Steam/steamapps/common/Kingdom Two Crowns/KingdomTwoCrowns.app/Contents/Frameworks/GameAssembly.dylib");
+        let p=Path::new("/Users/quangvictornguyen/Documents/Codex/2026-09-19/l/camp-detach-test/KingdomTwoCrowns-CampTest.app/Contents/Frameworks/GameAssembly.dylib");
         if !p.exists() {
             return;
         }
@@ -323,6 +380,29 @@ mod tests {
         assert_eq!(b, before);
         b[off + CONTINUE] ^= 1;
         assert!(read(&b).is_err());
+    }
+    #[test]
+    fn updated_build_roundtrip_changes_only_reserved_bytes() {
+        let p = Path::new("/Users/quangvictornguyen/Library/Application Support/Steam/steamapps/common/Kingdom Two Crowns/KingdomTwoCrowns.app/Contents/Frameworks/GameAssembly.dylib");
+        if !p.exists() {
+            return;
+        }
+        let original = fs::read(p).unwrap();
+        let off = locate(&original).unwrap();
+        let (hook, cave, _, _) = layout(&original, off).unwrap();
+        if hook == HOOK {
+            return;
+        }
+        let mut b = original.clone();
+        patch(&mut b, true).unwrap();
+        assert_eq!(mode(&b).unwrap(), 2);
+        assert!(b.iter().zip(&original).enumerate().all(|(i, (a, z))| a == z
+            || (off + hook..off + hook + 4).contains(&i)
+            || (off + cave..off + cave + GUARD_LEN).contains(&i)));
+        patch(&mut b, false).unwrap();
+        assert_eq!(b, original);
+        b[off + 0x66202c] ^= 1;
+        assert!(patch(&mut b, true).is_err());
     }
     #[test]
     fn matches_gameplay_tested_artifact() {

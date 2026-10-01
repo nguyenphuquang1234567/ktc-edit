@@ -21,18 +21,34 @@ fn word(b: &[u8], p: usize) -> Result<u32, String> {
 fn branch(a: usize, z: usize) -> u32 {
     0x14000000 | (((z as i64 - a as i64) / 4) as u32 & 0x3ffffff)
 }
+#[cfg(test)]
 fn code(limit: u16) -> Vec<u8> {
+    code_at(limit, HOOK, CAVE)
+}
+fn code_at(limit: u16, hook: usize, cave: usize) -> Vec<u8> {
     [
         ORIGINAL,
         0x35000095,
         0x52800009 | (u32::from(limit) << 5),
         0x6b09035f,
         0x1a89d35a,
-        branch(CAVE + 20, HOOK + 4),
+        branch(cave + 20, hook + 4),
     ]
     .into_iter()
     .flat_map(u32::to_le_bytes)
     .collect()
+}
+#[allow(non_snake_case)]
+pub(super) fn layout(b: &[u8], off: usize) -> Result<(usize, usize), String> {
+    for (hook, cave) in [(HOOK, CAVE), (0xb1512c, 0x44d76b0)] {
+        if word(b, off + hook - 4)? == 0xaa0003e8
+            && word(b, off + hook + 4)? == 0xf9403a60
+            && word(b, off + hook + 8)? == 0x6b1a011f
+        {
+            return Ok((hook, cave));
+        }
+    }
+    Err("Unsupported ShowCurrency code".into())
 }
 pub(super) fn locate(b: &[u8]) -> Result<usize, String> {
     if b.get(..4) != Some(&[0xca, 0xfe, 0xba, 0xbe]) {
@@ -62,10 +78,12 @@ pub(super) fn locate(b: &[u8]) -> Result<usize, String> {
         }
     }
     let off = found.ok_or("No ARM64 slice")?;
+    #[allow(non_snake_case)]
+    let (hook, cave) = layout(b, off)?;
     // Exact surrounding instructions for the gameplay-tested build, fail closed.
-    if word(b, off + HOOK - 4)? != 0xaa0003e8
-        || word(b, off + HOOK + 4)? != 0xf9403a60
-        || word(b, off + HOOK + 8)? != 0x6b1a011f
+    if word(b, off + hook - 4)? != 0xaa0003e8
+        || word(b, off + hook + 4)? != 0xf9403a60
+        || word(b, off + hook + 8)? != 0x6b1a011f
     {
         return Err("Unsupported ShowCurrency code".into());
     }
@@ -89,7 +107,7 @@ pub(super) fn locate(b: &[u8]) -> Result<usize, String> {
             };
             if q(p + 24)? != 0
                 || q(p + 40)? != 0
-                || q(p + 48)? < (CAVE + 24) as u64
+                || q(p + 48)? < (cave + 24) as u64
                 || word(b, p + 60)? & 4 == 0
             {
                 return Err("Invalid executable padding".into());
@@ -98,7 +116,7 @@ pub(super) fn locate(b: &[u8]) -> Result<usize, String> {
                 let s = p + 72 + i * 80;
                 if q(s + 32)?
                     .checked_add(q(s + 40)?)
-                    .is_none_or(|end| end > CAVE as u64)
+                    .is_none_or(|end| end > cave as u64)
                 {
                     return Err("Code cave overlaps a section".into());
                 }
@@ -114,16 +132,20 @@ pub(super) fn locate(b: &[u8]) -> Result<usize, String> {
 }
 fn read(b: &[u8]) -> Result<Option<u16>, String> {
     let o = locate(b)?;
-    let hook = word(b, o + HOOK)?;
-    if hook == ORIGINAL && b[o + CAVE..o + CAVE + 24].iter().all(|x| *x == 0) {
+    #[allow(non_snake_case)]
+    let (hook_address, cave) = layout(b, o)?;
+    let hook = word(b, o + hook_address)?;
+    if hook == ORIGINAL && b[o + cave..o + cave + 24].iter().all(|x| *x == 0) {
         return Ok(None);
     }
-    if hook != branch(HOOK, CAVE) {
+    if hook != branch(hook_address, cave) {
         return Err("Unknown coin bag patch".into());
     }
-    let mov = word(b, o + CAVE + 8)?;
+    let mov = word(b, o + cave + 8)?;
     let limit = ((mov >> 5) & 0xffff) as u16;
-    if !(1..=2000).contains(&limit) || b[o + CAVE..o + CAVE + 24] != code(limit) {
+    if !(1..=2000).contains(&limit)
+        || b[o + cave..o + cave + 24] != code_at(limit, hook_address, cave)
+    {
         return Err("Invalid coin bag trampoline".into());
     }
     Ok(Some(limit))
@@ -134,13 +156,19 @@ fn patch(b: &mut [u8], limit: Option<u16>) -> Result<(), String> {
         return Err("Visual limit must be between 1 and 2000".into());
     }
     let o = locate(b)?;
-    b[o + HOOK..o + HOOK + 4].copy_from_slice(
+    #[allow(non_snake_case)]
+    let (hook, cave) = layout(b, o)?;
+    b[o + hook..o + hook + 4].copy_from_slice(
         &limit
-            .map(|_| branch(HOOK, CAVE))
+            .map(|_| branch(hook, cave))
             .unwrap_or(ORIGINAL)
             .to_le_bytes(),
     );
-    b[o + CAVE..o + CAVE + 24].copy_from_slice(&limit.map(code).unwrap_or_else(|| vec![0; 24]));
+    b[o + cave..o + cave + 24].copy_from_slice(
+        &limit
+            .map(|n| code_at(n, hook, cave))
+            .unwrap_or_else(|| vec![0; 24]),
+    );
     Ok(())
 }
 #[tauri::command]
@@ -246,6 +274,8 @@ mod tests {
         }
         let mut b = fs::read(p).unwrap();
         let original = b.clone();
+        #[allow(non_snake_case)]
+        let (hook, _) = layout(&original, locate(&original).unwrap()).unwrap();
         let old = read(&b).unwrap();
         for n in [1, 30, 2000] {
             patch(&mut b, Some(n)).unwrap();
@@ -254,7 +284,7 @@ mod tests {
         patch(&mut b, old).unwrap();
         assert_eq!(b, original);
         assert!(patch(&mut b, Some(0)).is_err());
-        b[locate(&original).unwrap() + HOOK + 4] ^= 1;
+        b[locate(&original).unwrap() + hook + 4] ^= 1;
         assert!(read(&b).is_err());
     }
 }

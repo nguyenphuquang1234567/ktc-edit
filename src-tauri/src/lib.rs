@@ -24,8 +24,22 @@ const WARHORSE_COLLIDER_CONTEXT: [u8; 24] = [
     0xbc, 0x77, 0xf1, 0x97, 0x68, 0x02, 0x40, 0xf9, 0x08, 0x5d, 0x40, 0xf9, 0x1f, 0x29, 0x00, 0xb9,
     0x1f, 0xfd, 0x01, 0xa9, 0x00, 0xfd, 0x00, 0xa9,
 ];
+const UPDATED_COLLIDER_CONTEXT: [u8; 24] = [
+    0xd2, 0x73, 0xf1, 0x97, 0x68, 0x02, 0x40, 0xf9, 0x08, 0x5d, 0x40, 0xf9, 0x1f, 0x29, 0x00, 0xb9,
+    0x1f, 0xfd, 0x01, 0xa9, 0x00, 0xfd, 0x00, 0xa9,
+];
 const EXPECTED_RESOURCES_SIZE: u64 = 59_975_696;
 const EXPECTED_SHARED_SIZE: u64 = 59_876_160;
+const UPDATED_RESOURCES_SIZE: u64 = 59_380_416;
+const UPDATED_SHARED_SIZE: u64 = 59_877_328;
+
+fn supported_asset_sizes(resources: u64, shared: u64) -> bool {
+    matches!(
+        (resources, shared),
+        (EXPECTED_RESOURCES_SIZE, EXPECTED_SHARED_SIZE)
+            | (UPDATED_RESOURCES_SIZE, UPDATED_SHARED_SIZE)
+    )
+}
 
 #[derive(Clone, Copy)]
 struct FloatTarget {
@@ -128,11 +142,12 @@ const WARHORSE_SKILL_NAMES: [&str; 4] = [
 ];
 const WARHORSE_SKILL_COST: [ComponentFloatTarget; 4] =
     component_targets(RESOURCES_ASSETS, WARHORSE_SKILL_NAMES, 32);
-const WARHORSE_COOLDOWN: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [58179764, 58288052]);
-const WARHORSE_PLAGUE_COOLDOWN: [FloatTarget; 2] = targets(RESOURCES_ASSETS, [58169220, 58169108]);
-const WARHORSE_RANGE: [FloatTarget; 4] =
-    targets(RESOURCES_ASSETS, [58179816, 58288104, 58169272, 58169160]);
-const WARHORSE_DURATION: [FloatTarget; 1] = targets(RESOURCES_ASSETS, [55809144]);
+const WARHORSE_COOLDOWN: [ComponentFloatTarget; 2] =
+    component_targets(RESOURCES_ASSETS, WARHORSE_NAMES, 52);
+const WARHORSE_PLAGUE_COOLDOWN: [ComponentFloatTarget; 2] =
+    component_targets(RESOURCES_ASSETS, WARHORSE_PLAGUE_NAMES, 52);
+const WARHORSE_RANGE: [ComponentFloatTarget; 4] =
+    component_targets(RESOURCES_ASSETS, WARHORSE_SKILL_NAMES, 104);
 const ARCHER_NAMES: [&str; 3] = ["Archer_norselands", "Archer_Soldier_norselands", "Archer"];
 const ARCHER_WALK_SPEED: [ComponentFloatTarget; 3] =
     component_targets(RESOURCES_ASSETS, ARCHER_NAMES, 140);
@@ -242,19 +257,6 @@ const BAG_SCALE: [ComponentFloatTarget; 12] = [
     },
 ];
 
-const fn targets<const N: usize>(file: &'static str, offsets: [usize; N]) -> [FloatTarget; N] {
-    let mut result = [FloatTarget { file, offset: 0 }; N];
-    let mut index = 0;
-    while index < N {
-        result[index] = FloatTarget {
-            file,
-            offset: offsets[index],
-        };
-        index += 1;
-    }
-    result
-}
-
 const fn component_targets<const N: usize>(
     file: &'static str,
     game_objects: [&'static str; N],
@@ -360,7 +362,9 @@ fn collider_limit_instruction_offset(bytes: &[u8]) -> Result<usize, String> {
     let mut matches = bytes
         .windows(WARHORSE_COLLIDER_CONTEXT.len())
         .enumerate()
-        .filter(|(_, window)| *window == WARHORSE_COLLIDER_CONTEXT)
+        .filter(|(_, window)| {
+            *window == WARHORSE_COLLIDER_CONTEXT || *window == UPDATED_COLLIDER_CONTEXT
+        })
         .map(|(index, _)| index);
     let context_offset = matches
         .next()
@@ -968,7 +972,7 @@ fn validate_asset_directory(directory: &Path) -> Result<(), String> {
         })?
         .len();
 
-    if resources_size != EXPECTED_RESOURCES_SIZE || shared_size != EXPECTED_SHARED_SIZE {
+    if !supported_asset_sizes(resources_size, shared_size) {
         return Err(format!(
             "These assets do not match the supported KTC profile (resources: {resources_size}, shared: {shared_size}). No changes were written."
         ));
@@ -1274,6 +1278,39 @@ fn resolve_builtin_component_offset(
     ))
 }
 
+fn warhorse_duration_target(resources: &[u8], global: &[u8]) -> Result<[FloatTarget; 1], String> {
+    let script = find_mono_script_path(global, "BuffData")?;
+    let mut found = Vec::new();
+    for object in parse_unity_objects(resources)?
+        .iter()
+        .filter(|o| o.class_id == 114)
+    {
+        let raw = object_bytes(resources, object)?;
+        if raw.len() < 32 {
+            continue;
+        }
+        if i32::from_le_bytes(raw[16..20].try_into().unwrap()) != 1
+            || i64::from_le_bytes(raw[20..28].try_into().unwrap()) != script
+        {
+            continue;
+        }
+        let mut cursor = 28;
+        if read_aligned_string(raw, &mut cursor)? == "Buff_invulnerability_warhorse" {
+            if object.byte_size != 264 {
+                return Err("Unsupported Warhorse BuffData layout".into());
+            }
+            found.push(FloatTarget {
+                file: RESOURCES_ASSETS,
+                offset: object.byte_start + 72,
+            });
+        }
+    }
+    if found.len() != 1 {
+        return Err("Expected exactly one Warhorse BuffData asset".into());
+    }
+    Ok([found[0]])
+}
+
 fn read_float(bytes: &[u8], offset: usize) -> Result<f32, String> {
     let slice = bytes
         .get(offset..offset + 4)
@@ -1492,19 +1529,20 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
     let damageable_script_path = find_mono_script_path(&global_managers, "Damageable")?;
     let wallet_script_path = find_mono_script_path(&global_managers, "Wallet")?;
     Ok(AssetSettings {
-        griffin_run_speed: consistent_component_value(
+        // Clean builds have different Greece defaults. Apply synchronizes all variants.
+        griffin_run_speed: primary_component_value(
             &resources,
             &shared,
             steed_script_path,
             &GRIFFIN_RUN,
         )?,
-        griffin_forest_multiplier: consistent_component_value(
+        griffin_forest_multiplier: primary_component_value(
             &resources,
             &shared,
             steed_script_path,
             &GRIFFIN_FOREST,
         )?,
-        griffin_run_stamina_rate: consistent_component_value(
+        griffin_run_stamina_rate: primary_component_value(
             &resources,
             &shared,
             steed_script_path,
@@ -1591,10 +1629,29 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
             warhorse_skill_script_path,
             &WARHORSE_SKILL_COST,
         )?,
-        warhorse_cooldown: consistent_value(&resources, &shared, &WARHORSE_COOLDOWN)?,
-        warhorse_plague_cooldown: consistent_value(&resources, &shared, &WARHORSE_PLAGUE_COOLDOWN)?,
-        warhorse_buff_duration: consistent_value(&resources, &shared, &WARHORSE_DURATION)?,
-        warhorse_buff_range: consistent_value(&resources, &shared, &WARHORSE_RANGE)?,
+        warhorse_cooldown: consistent_component_value(
+            &resources,
+            &shared,
+            warhorse_skill_script_path,
+            &WARHORSE_COOLDOWN,
+        )?,
+        warhorse_plague_cooldown: consistent_component_value(
+            &resources,
+            &shared,
+            warhorse_skill_script_path,
+            &WARHORSE_PLAGUE_COOLDOWN,
+        )?,
+        warhorse_buff_duration: consistent_value(
+            &resources,
+            &shared,
+            &warhorse_duration_target(&resources, &global_managers)?,
+        )?,
+        warhorse_buff_range: consistent_component_value(
+            &resources,
+            &shared,
+            warhorse_skill_script_path,
+            &WARHORSE_RANGE,
+        )?,
         archer_walk_speed: consistent_component_value(
             &resources,
             &shared,
@@ -2021,27 +2078,31 @@ fn apply_game_assets(
         &WARHORSE_SKILL_COST,
         settings.warhorse_skill_stamina_cost,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        warhorse_skill_script_path,
         &WARHORSE_COOLDOWN,
         settings.warhorse_cooldown,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        warhorse_skill_script_path,
         &WARHORSE_PLAGUE_COOLDOWN,
         settings.warhorse_plague_cooldown,
     )?;
+    let duration_target = warhorse_duration_target(&resources, &global_managers)?;
     write_targets(
         &mut resources,
         &mut shared,
-        &WARHORSE_DURATION,
+        &duration_target,
         settings.warhorse_buff_duration,
     )?;
-    write_targets(
+    write_component_targets(
         &mut resources,
         &mut shared,
+        warhorse_skill_script_path,
         &WARHORSE_RANGE,
         settings.warhorse_buff_range,
     )?;
@@ -2257,10 +2318,22 @@ fn restore_game_assets(
         .map_err(|err| format!("Could not read the resources backup: {err}"))?;
     let shared_bytes = fs::read(&shared_backup)
         .map_err(|err| format!("Could not read the sharedassets backup: {err}"))?;
-    if resources_bytes.len() as u64 != EXPECTED_RESOURCES_SIZE
-        || shared_bytes.len() as u64 != EXPECTED_SHARED_SIZE
-    {
+    if !supported_asset_sizes(resources_bytes.len() as u64, shared_bytes.len() as u64) {
         return Err("The backup file sizes are invalid".into());
+    }
+    validate_asset_directory(&directory)?;
+    if fs::metadata(directory.join(RESOURCES_ASSETS))
+        .map_err(|e| e.to_string())?
+        .len()
+        != resources_bytes.len() as u64
+        || fs::metadata(directory.join(SHARED_ASSETS))
+            .map_err(|e| e.to_string())?
+            .len()
+            != shared_bytes.len() as u64
+    {
+        return Err(
+            "Backup belongs to a different game build; refusing cross-build restore".into(),
+        );
     }
     let resources_path = directory.join(RESOURCES_ASSETS);
     let shared_path = directory.join(SHARED_ASSETS);
@@ -2294,6 +2367,69 @@ mod tests {
     #[test]
     fn warhorse_collider_limit_rejects_unrecognized_code() {
         assert!(read_collider_limit(&[0; 64]).is_err());
+    }
+
+    #[test]
+    fn accepts_only_verified_asset_pairs() {
+        assert!(supported_asset_sizes(
+            EXPECTED_RESOURCES_SIZE,
+            EXPECTED_SHARED_SIZE
+        ));
+        assert!(supported_asset_sizes(
+            UPDATED_RESOURCES_SIZE,
+            UPDATED_SHARED_SIZE
+        ));
+        assert!(!supported_asset_sizes(
+            UPDATED_RESOURCES_SIZE,
+            EXPECTED_SHARED_SIZE
+        ));
+        assert!(!supported_asset_sizes(
+            EXPECTED_RESOURCES_SIZE,
+            UPDATED_SHARED_SIZE
+        ));
+        assert!(!supported_asset_sizes(0, 0));
+    }
+
+    #[test]
+    fn updated_warhorse_fields_roundtrip_in_memory() {
+        let dir = default_game_data_directory();
+        let Ok(mut resources) = fs::read(dir.join(RESOURCES_ASSETS)) else {
+            return;
+        };
+        let mut shared = fs::read(dir.join(SHARED_ASSETS)).unwrap();
+        let global = fs::read(dir.join(GLOBAL_MANAGERS_ASSETS)).unwrap();
+        let script = find_mono_script_path(&global, "BuffUnitsSteedAbility").unwrap();
+        let original = resources.clone();
+        let mut allowed = Vec::new();
+        for targets in [
+            &WARHORSE_COOLDOWN[..],
+            &WARHORSE_PLAGUE_COOLDOWN[..],
+            &WARHORSE_RANGE[..],
+        ] {
+            for t in targets {
+                allowed.push(
+                    resolve_component_offset(&resources, script, t.game_object, t.relative_offset)
+                        .unwrap(),
+                );
+            }
+            write_component_targets(&mut resources, &mut shared, script, targets, 123.0).unwrap();
+            assert_eq!(
+                consistent_component_value(&resources, &shared, script, targets).unwrap(),
+                123.0
+            );
+        }
+        let duration = warhorse_duration_target(&resources, &global).unwrap();
+        allowed.push(duration[0].offset);
+        write_targets(&mut resources, &mut shared, &duration, 321.0).unwrap();
+        assert_eq!(
+            consistent_value(&resources, &shared, &duration).unwrap(),
+            321.0
+        );
+        assert!(resources
+            .iter()
+            .zip(&original)
+            .enumerate()
+            .all(|(i, (a, b))| a == b || allowed.iter().any(|o| (*o..*o + 4).contains(&i))));
     }
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
