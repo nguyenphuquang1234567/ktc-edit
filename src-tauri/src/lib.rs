@@ -1883,19 +1883,14 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
     let values = [
         settings.griffin_run_speed,
         settings.griffin_forest_multiplier,
-        settings.griffin_run_stamina_rate,
         settings.griffin_skill_stamina_cost,
         settings.griffin_push_width,
         settings.griffin_push_height,
         settings.lizard_run_speed,
-        settings.lizard_run_stamina_rate,
         settings.lizard_skill_stamina_cost,
         settings.horse_run_speed,
-        settings.horse_run_stamina_rate,
         settings.warhorse_run_speed,
-        settings.warhorse_run_stamina_rate,
         settings.warhorse_plague_run_speed,
-        settings.warhorse_plague_run_stamina_rate,
         settings.warhorse_skill_stamina_cost,
         settings.warhorse_cooldown,
         settings.warhorse_plague_cooldown,
@@ -1918,7 +1913,17 @@ fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
         .iter()
         .any(|value| !valid_nonnegative_asset_number(*value))
     {
-        return Err("Every value must be finite and non-negative".into());
+        return Err("Speeds, costs, sizes, and cooldowns must be finite and non-negative".into());
+    }
+    let stamina_rates = [
+        settings.griffin_run_stamina_rate,
+        settings.lizard_run_stamina_rate,
+        settings.horse_run_stamina_rate,
+        settings.warhorse_run_stamina_rate,
+        settings.warhorse_plague_run_stamina_rate,
+    ];
+    if stamina_rates.iter().any(|value| !value.is_finite()) {
+        return Err("Run stamina rates must be finite; negative values are allowed".into());
     }
     if !settings.warhorse_buff_duration.is_finite()
         || !(0.0..=1_000_000.0).contains(&settings.warhorse_buff_duration)
@@ -2392,6 +2397,23 @@ mod tests {
             UPDATED_SHARED_SIZE
         ));
         assert!(!supported_asset_sizes(0, 0));
+    }
+
+    #[test]
+    fn negative_run_stamina_rates_are_allowed() {
+        let dir = default_game_data_directory();
+        if !dir.join(RESOURCES_ASSETS).exists() {
+            return;
+        }
+        let mut settings = read_asset_settings(&dir).unwrap();
+        settings.griffin_run_stamina_rate = -0.05;
+        settings.lizard_run_stamina_rate = -0.05;
+        settings.horse_run_stamina_rate = -0.05;
+        settings.warhorse_run_stamina_rate = -0.05;
+        settings.warhorse_plague_run_stamina_rate = -0.05;
+        assert!(validate_settings(&settings).is_ok());
+        settings.horse_run_stamina_rate = f32::NAN;
+        assert!(validate_settings(&settings).is_err());
     }
 
     #[test]
