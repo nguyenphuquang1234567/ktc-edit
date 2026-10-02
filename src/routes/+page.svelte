@@ -83,6 +83,7 @@
     knightWalletCapacity: number;
     playerWalletCapacity: number;
     knightWalletPayTaxesAbove: number;
+    knightCoinDropProbability: number;
     bagScale: number;
   }
 
@@ -1775,6 +1776,8 @@
 
             <section class="card asset-card">
               <h2>Knight Wallet</h2>
+              <label>Coin drop probability (0–1)<input type="number" min="0" max="1" step="0.05" value={assetSettings.knightCoinDropProbability} oninput={(e) => updateAssetNumber('knightCoinDropProbability', e)} /></label>
+              <p class="muted">Character.coinDropProbability: 0 means no coin loss through this damage path; 0.4 means 40% per coin-drop check. This is not full invulnerability.</p>
               <label>Coin capacity<input type="number" min="1" max="1000000" step="1" value={assetSettings.knightWalletCapacity} oninput={(e) => updateAssetNumber('knightWalletCapacity', e)} /></label>
               <label>Pay taxes above<input type="number" min="0" max="1000000" step="1" value={assetSettings.knightWalletPayTaxesAbove} oninput={(e) => updateAssetNumber('knightWalletPayTaxesAbove', e)} /></label>
               <p class="muted">Applied to regular, Norse Lands, and Greece Knights. Squires are unchanged.</p>

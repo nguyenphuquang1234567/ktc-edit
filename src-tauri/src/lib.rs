@@ -188,6 +188,8 @@ const WALL5_STANDARD_HP: [ComponentFloatTarget; 6] =
 const WALL5_NORSELANDS_HP: [ComponentFloatTarget; 2] =
     component_targets(RESOURCES_ASSETS, WALL5_NORSELANDS_NAMES, 44);
 const KNIGHT_WALLET_NAMES: [&str; 3] = ["Knight", "Knight_norselands", "Knight_greece"];
+const KNIGHT_COIN_DROP_PROBABILITY: [ComponentFloatTarget; 3] =
+    component_targets(RESOURCES_ASSETS, KNIGHT_WALLET_NAMES, 56);
 const KNIGHT_WALLET_CAPACITY: [ComponentFloatTarget; 3] =
     component_targets(RESOURCES_ASSETS, KNIGHT_WALLET_NAMES, 268);
 const PLAYER_WALLET_CAPACITY: [ComponentFloatTarget; 1] =
@@ -319,6 +321,7 @@ struct AssetSettings {
     knight_wallet_capacity: i32,
     player_wallet_capacity: i32,
     knight_wallet_pay_taxes_above: i32,
+    knight_coin_drop_probability: f32,
     bag_scale: f32,
 }
 
@@ -1749,6 +1752,12 @@ fn read_asset_settings(directory: &Path) -> Result<AssetSettings, String> {
             wallet_script_path,
             &KNIGHT_WALLET_PAY_TAXES_ABOVE,
         )?,
+        knight_coin_drop_probability: consistent_component_value(
+            &resources,
+            &shared,
+            find_mono_script_path(&global_managers, "Character")?,
+            &KNIGHT_COIN_DROP_PROBABILITY,
+        )?,
         bag_scale: consistent_builtin_component_value(&resources, &shared, 4, &BAG_SCALE)?,
     })
 }
@@ -1867,6 +1876,11 @@ fn valid_nonnegative_asset_number(value: f32) -> bool {
 }
 
 fn validate_settings(settings: &AssetSettings) -> Result<(), String> {
+    if !settings.knight_coin_drop_probability.is_finite()
+        || !(0.0..=1.0).contains(&settings.knight_coin_drop_probability)
+    {
+        return Err("Knight coin drop probability must be between 0 and 1".into());
+    }
     if !(1..=1_000_000).contains(&settings.wall5_standard_hit_points)
         || !(1..=1_000_000).contains(&settings.wall5_norselands_hit_points)
     {
@@ -2235,6 +2249,14 @@ fn apply_game_assets(
         4,
         &BAG_SCALE,
         settings.bag_scale,
+    )?;
+
+    write_component_targets(
+        &mut resources,
+        &mut shared,
+        find_mono_script_path(&global_managers, "Character")?,
+        &KNIGHT_COIN_DROP_PROBABILITY,
+        settings.knight_coin_drop_probability,
     )?;
 
     let resources_backup = create_backup(&resources_path)?;
@@ -2748,6 +2770,22 @@ mod tests {
             );
         }
         let wallet = find_mono_script_path(&global_managers, "Wallet").expect("Wallet script");
+        let character = find_mono_script_path(&global_managers, "Character").expect("Character script");
+        let squire_drop_offset = resolve_component_offset(&resources, character, "Squire", 56)
+            .expect("Squire coin drop probability");
+        let mut changed_drop_resources = resources.clone();
+        let mut changed_drop_shared = shared.clone();
+        write_component_targets(
+            &mut changed_drop_resources, &mut changed_drop_shared, character,
+            &KNIGHT_COIN_DROP_PROBABILITY, 0.0,
+        ).expect("write Knight coin drop probability in memory");
+        assert_eq!(consistent_component_value(
+            &changed_drop_resources, &changed_drop_shared, character,
+            &KNIGHT_COIN_DROP_PROBABILITY,
+        ).unwrap(), 0.0);
+        assert_eq!(&changed_drop_resources[squire_drop_offset..squire_drop_offset + 4],
+            &resources[squire_drop_offset..squire_drop_offset + 4]);
+        assert_eq!(changed_drop_shared, shared);
         let squire_wallet_offset =
             resolve_component_offset(&resources, wallet, "Squire", 268).expect("Squire Wallet");
         let squire_capacity = read_int(&resources, squire_wallet_offset).expect("Squire capacity");
